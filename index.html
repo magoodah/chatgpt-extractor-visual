@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pulse Grid - ChatGPT Prompt Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a365d 100%);
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+            position: relative;
+        }
+
+        #canvas {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        /* Header Statistics */
+        .stats-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            z-index: 10;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #60a5fa;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        /* Avatar Styles */
+        .avatar {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 3px solid #60a5fa;
+            box-shadow: 0 0 20px rgba(96, 165, 250, 0.5);
+            object-fit: cover;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .avatar-pulse {
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* Prompt Display */
+        .prompt-display {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 100px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 10;
+        }
+
+        .prompt-text {
+            font-size: 20px;
+            max-width: 80%;
+            text-align: center;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .prompt-user {
+            font-size: 14px;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+
+        /* Settings Panel */
+        .settings-panel {
+            position: absolute;
+            top: 100px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 15;
+        }
+
+        .settings-panel h3 {
+            margin-bottom: 15px;
+            color: #60a5fa;
+        }
+
+        .setting-item {
+            margin-bottom: 10px;
+        }
+
+        .setting-item label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .setting-item input[type="range"] {
+            width: 100%;
+        }
+
+        .setting-item input[type="checkbox"] {
+            margin-right: 5px;
+        }
+
+        /* Activity Indicator */
+        .activity-indicator {
+            position: absolute;
+            bottom: 120px;
+            right: 20px;
+            width: 200px;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            padding: 10px;
+            z-index: 10;
+        }
+
+        .activity-bar {
+            height: 5px;
+            background: #60a5fa;
+            border-radius: 3px;
+            transition: width 0.3s ease;
+            margin-top: 5px;
+        }
+
+        /* Loading Screen */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 20;
+        }
+
+        .loading.hidden {
+            display: none;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(96, 165, 250, 0.3);
+            border-top-color: #60a5fa;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div class="loading" id="loading">
+        <div class="loading-spinner"></div>
+        <div>Initializing Pulse Grid...</div>
+    </div>
+
+    <!-- Statistics Header -->
+    <div class="stats-header">
+        <div class="stat-item">
+            <div class="stat-value" id="totalPrompts">0</div>
+            <div class="stat-label">Total Prompts Today</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="activeUsers">0</div>
+            <div class="stat-label">Active Users</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="promptsPerMinute">0</div>
+            <div class="stat-label">Prompts/Minute</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="peakActivity">--:--</div>
+            <div class="stat-label">Peak Activity</div>
+        </div>
+    </div>
+
+    <!-- Main Canvas -->
+    <canvas id="canvas"></canvas>
+
+    <!-- Prompt Display -->
+    <div class="prompt-display">
+        <div class="prompt-text" id="promptText"></div>
+        <div class="prompt-user" id="promptUser"></div>
+    </div>
+
+    <!-- Settings Panel -->
+    <div class="settings-panel">
+        <h3>Settings</h3>
+        <div class="setting-item">
+            <label for="rippleSpeed">Ripple Speed</label>
+            <input type="range" id="rippleSpeed" min="0.5" max="2" step="0.1" value="1">
+        </div>
+        <div class="setting-item">
+            <label for="gridDensity">Grid Density</label>
+            <input type="range" id="gridDensity" min="20" max="50" step="5" value="30">
+        </div>
+        <div class="setting-item">
+            <label>
+                <input type="checkbox" id="showAvatars" checked>
+                Show Avatars
+            </label>
+        </div>
+        <div class="setting-item">
+            <label>
+                <input type="checkbox" id="particleEffects" checked>
+                Particle Effects
+            </label>
+        </div>
+    </div>
+
+    <!-- Activity Indicator -->
+    <div class="activity-indicator">
+        <div>Activity Level</div>
+        <div class="activity-bar" id="activityBar"></div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+
+    <script>
+        // Configuration
+        const CONFIG = {
+            GRID_COLS: 50,
+            GRID_ROWS: 30,
+            NODE_RADIUS: 3,
+            NODE_BASE_COLOR: '#2563eb',
+            NODE_ACTIVE_COLOR: '#60a5fa',
+            NODE_BASE_OPACITY: 0.3,
+            RIPPLE_SPEED: 5, // nodes per second
+            RIPPLE_MAX_RADIUS: 15,
+            RIPPLE_DURATION: 3000,
+            RIPPLE_FADE_DURATION: 2000,
+            AVATAR_SIZE: 60,
+            AVATAR_DISPLAY_DURATION: 5000,
+            MAX_ACTIVE_RIPPLES: 10,
+            PROMPT_DISPLAY_DURATION: 5000
+        };
+
+        // Grid Manager
+        class GridManager {
+            constructor(canvas, cols, rows) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.cols = cols;
+                this.rows = rows;
+                this.nodes = [];
+                this.nodeSpacing = 0;
+                this.setupCanvas();
+                this.initializeGrid();
+            }
+
+            setupCanvas() {
+                const maxWidth = window.innerWidth * 0.9;
+                const maxHeight = window.innerHeight * 0.7;
+                
+                this.nodeSpacing = Math.min(
+                    maxWidth / (this.cols + 1),
+                    maxHeight / (this.rows + 1)
+                );
+                
+                this.canvas.width = this.nodeSpacing * (this.cols + 1);
+                this.canvas.height = this.nodeSpacing * (this.rows + 1);
+            }
+
+            initializeGrid() {
+                this.nodes = [];
+                for (let row = 0; row < this.rows; row++) {
+                    for (let col = 0; col < this.cols; col++) {
+                        this.nodes.push({
+                            x: (col + 1) * this.nodeSpacing,
+                            y: (row + 1) * this.nodeSpacing,
+                            row,
+                            col,
+                            brightness: 0,
+                            targetBrightness: 0
+                        });
+                    }
+                }
+            }
+
+            getNodeAt(col, row) {
+                if (col < 0 || col >= this.cols || row < 0 || row >= this.rows) {
+                    return null;
+                }
+                return this.nodes[row * this.cols + col];
+            }
+
+            getRandomNode() {
+                const col = Math.floor(Math.random() * this.cols);
+                const row = Math.floor(Math.random() * this.rows);
+                return this.getNodeAt(col, row);
+            }
+
+            update(deltaTime) {
+                // Update node brightnesses with smooth transitions
+                this.nodes.forEach(node => {
+                    const diff = node.targetBrightness - node.brightness;
+                    node.brightness += diff * 0.1;
+                    
+                    // Reset target brightness for idle state
+                    if (node.targetBrightness > 0) {
+                        node.targetBrightness *= 0.98;
+                    }
+                });
+            }
+
+            render() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                this.nodes.forEach(node => {
+                    const opacity = CONFIG.NODE_BASE_OPACITY + node.brightness * (1 - CONFIG.NODE_BASE_OPACITY);
+                    const color = this.interpolateColor(CONFIG.NODE_BASE_COLOR, CONFIG.NODE_ACTIVE_COLOR, node.brightness);
+                    
+                    this.ctx.beginPath();
+                    this.ctx.arc(node.x, node.y, CONFIG.NODE_RADIUS, 0, Math.PI * 2);
+                    this.ctx.fillStyle = color + Math.floor(opacity * 255).toString(16).padStart(2, '0');
+                    this.ctx.fill();
+                    
+                    // Add glow effect for active nodes
+                    if (node.brightness > 0.1) {
+                        this.ctx.shadowBlur = 10 * node.brightness;
+                        this.ctx.shadowColor = CONFIG.NODE_ACTIVE_COLOR;
+                        this.ctx.fill();
+                        this.ctx.shadowBlur = 0;
+                    }
+                });
+            }
+
+            interpolateColor(color1, color2, factor) {
+                const c1 = this.hexToRgb(color1);
+                const c2 = this.hexToRgb(color2);
+                
+                const r = Math.round(c1.r + (c2.r - c1.r) * factor);
+                const g = Math.round(c1.g + (c2.g - c1.g) * factor);
+                const b = Math.round(c1.b + (c2.b - c1.b) * factor);
+                
+                return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+            }
+
+            hexToRgb(hex) {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? {
+                    r: parseInt(result[1], 16),
+                    g: parseInt(result[2], 16),
+                    b: parseInt(result[3], 16)
+                } : null;
+            }
+        }
+
+        // Ripple Engine
+        class RippleEngine {
+            constructor(gridManager) {
+                this.gridManager = gridManager;
+                this.activeRipples = [];
+                this.rippleQueue = [];
+            }
+
+            addRipple(centerNode, userData) {
+                if (this.activeRipples.length >= CONFIG.MAX_ACTIVE_RIPPLES) {
+                    this.rippleQueue.push({ centerNode, userData });
+                    return;
+                }
+
+                const ripple = {
+                    centerNode,
+                    userData,
+                    startTime: Date.now(),
+                    radius: 0,
+                    maxRadius: CONFIG.RIPPLE_MAX_RADIUS,
+                    phase: 'expanding' // expanding, fading, complete
+                };
+
+                this.activeRipples.push(ripple);
+                this.createAvatar(ripple);
+            }
+
+            createAvatar(ripple) {
+                if (!document.getElementById('showAvatars').checked) return;
+
+                const avatar = document.createElement('img');
+                avatar.className = 'avatar avatar-pulse';
+                avatar.src = ripple.userData.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(ripple.userData.email)}&background=60a5fa&color=fff`;
+                
+                const rect = this.gridManager.canvas.getBoundingClientRect();
+                avatar.style.left = rect.left + ripple.centerNode.x - CONFIG.AVATAR_SIZE / 2 + 'px';
+                avatar.style.top = rect.top + ripple.centerNode.y - CONFIG.AVATAR_SIZE / 2 + 'px';
+                
+                document.body.appendChild(avatar);
+                
+                // Fade in
+                avatar.style.opacity = '0';
+                setTimeout(() => avatar.style.opacity = '1', 10);
+                
+                // Remove after display duration
+                setTimeout(() => {
+                    avatar.style.opacity = '0';
+                    setTimeout(() => avatar.remove(), 1000);
+                }, CONFIG.AVATAR_DISPLAY_DURATION);
+            }
+
+            update(deltaTime) {
+                // Update active ripples
+                this.activeRipples = this.activeRipples.filter(ripple => {
+                    const elapsed = Date.now() - ripple.startTime;
+                    
+                    if (ripple.phase === 'expanding') {
+                        ripple.radius = (elapsed / CONFIG.RIPPLE_DURATION) * ripple.maxRadius * CONFIG.rippleSpeed;
+                        
+                        if (elapsed >= CONFIG.RIPPLE_DURATION) {
+                            ripple.phase = 'fading';
+                            ripple.fadeStartTime = Date.now();
+                        }
+                    } else if (ripple.phase === 'fading') {
+                        const fadeElapsed = Date.now() - ripple.fadeStartTime;
+                        if (fadeElapsed >= CONFIG.RIPPLE_FADE_DURATION) {
+                            ripple.phase = 'complete';
+                            return false;
+                        }
+                    }
+                    
+                    // Apply ripple effect to nodes
+                    this.applyRippleToNodes(ripple);
+                    return true;
+                });
+                
+                // Process queue
+                while (this.rippleQueue.length > 0 && this.activeRipples.length < CONFIG.MAX_ACTIVE_RIPPLES) {
+                    const queued = this.rippleQueue.shift();
+                    this.addRipple(queued.centerNode, queued.userData);
+                }
+            }
+
+            applyRippleToNodes(ripple) {
+                const { col: centerCol, row: centerRow } = ripple.centerNode;
+                const currentRadius = Math.floor(ripple.radius);
+                
+                for (let r = -currentRadius; r <= currentRadius; r++) {
+                    for (let c = -currentRadius; c <= currentRadius; c++) {
+                        const distance = Math.sqrt(r * r + c * c);
+                        if (distance <= ripple.radius) {
+                            const node = this.gridManager.getNodeAt(centerCol + c, centerRow + r);
+                            if (node) {
+                                const intensity = 1 - Math.pow(distance / ripple.maxRadius, 2);
+                                let brightness = intensity;
+                                
+                                if (ripple.phase === 'fading') {
+                                    const fadeProgress = (Date.now() - ripple.fadeStartTime) / CONFIG.RIPPLE_FADE_DURATION;
+                                    brightness *= (1 - fadeProgress);
+                                }
+                                
+                                node.targetBrightness = Math.max(node.targetBrightness, brightness);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Statistics Manager
+        class StatisticsManager {
+            constructor() {
+                this.stats = {
+                    totalPromptsToday: 0,
+                    activeUsers: new Set(),
+                    promptTimestamps: [],
+                    peakActivity: { time: null, count: 0 }
+                };
+                this.updateUI();
+            }
+
+            addPrompt(userData) {
+                this.stats.totalPromptsToday++;
+                this.stats.activeUsers.add(userData.email);
+                this.stats.promptTimestamps.push(Date.now());
+                
+                // Clean old timestamps (older than 1 hour)
+                const oneHourAgo = Date.now() - 3600000;
+                this.stats.promptTimestamps = this.stats.promptTimestamps.filter(ts => ts > oneHourAgo);
+                
+                // Update peak activity
+                const currentHour = new Date().getHours();
+                const promptsThisHour = this.stats.promptTimestamps.filter(ts => {
+                    return new Date(ts).getHours() === currentHour;
+                }).length;
+                
+                if (promptsThisHour > this.stats.peakActivity.count) {
+                    this.stats.peakActivity = {
+                        time: `${currentHour}:00`,
+                        count: promptsThisHour
+                    };
+                }
+                
+                this.updateUI();
+                this.updateActivityBar();
+            }
+
+            getPromptsPerMinute() {
+                const oneMinuteAgo = Date.now() - 60000;
+                const recentPrompts = this.stats.promptTimestamps.filter(ts => ts > oneMinuteAgo);
+                return recentPrompts.length;
+            }
+
+            updateUI() {
+                document.getElementById('totalPrompts').textContent = this.stats.totalPromptsToday;
+                document.getElementById('activeUsers').textContent = this.stats.activeUsers.size;
+                document.getElementById('promptsPerMinute').textContent = this.getPromptsPerMinute().toFixed(1);
+                document.getElementById('peakActivity').textContent = this.stats.peakActivity.time || '--:--';
+            }
+
+            updateActivityBar() {
+                const activity = Math.min(this.getPromptsPerMinute() / 10, 1);
+                document.getElementById('activityBar').style.width = `${activity * 100}%`;
+            }
+        }
+
+        // Prompt Display Controller
+        class PromptDisplayController {
+            constructor() {
+                this.currentPrompt = null;
+                this.displayTimeout = null;
+            }
+
+            showPrompt(userData) {
+                // Clear existing timeout
+                if (this.displayTimeout) {
+                    clearTimeout(this.displayTimeout);
+                }
+                
+                // Display prompt text
+                const promptText = userData.content || 'New prompt';
+                const truncatedText = promptText.length > 100 ? promptText.substring(0, 100) + '...' : promptText;
+                
+                document.getElementById('promptText').textContent = truncatedText;
+                document.getElementById('promptUser').textContent = userData.email || 'Anonymous';
+                
+                // Auto-hide after duration
+                this.displayTimeout = setTimeout(() => {
+                    document.getElementById('promptText').textContent = '';
+                    document.getElementById('promptUser').textContent = '';
+                }, CONFIG.PROMPT_DISPLAY_DURATION);
+            }
+        }
+
+        // Main Application
+        class PulseGridApp {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.gridManager = new GridManager(this.canvas, CONFIG.GRID_COLS, CONFIG.GRID_ROWS);
+                this.rippleEngine = new RippleEngine(this.gridManager);
+                this.statsManager = new StatisticsManager();
+                this.promptDisplay = new PromptDisplayController();
+                this.lastFrameTime = 0;
+                this.isRunning = true;
+                
+                // Settings
+                this.rippleSpeed = 1;
+                
+                this.initializeSettings();
+                this.initializeFirebase();
+                this.startAnimationLoop();
+                
+                // Hide loading screen
+                setTimeout(() => {
+                    document.getElementById('loading').classList.add('hidden');
+                }, 1000);
+                
+                // Demo mode - generate test data
+                this.startDemoMode();
+            }
+
+            initializeSettings() {
+                // Ripple speed control
+                document.getElementById('rippleSpeed').addEventListener('input', (e) => {
+                    CONFIG.rippleSpeed = parseFloat(e.target.value);
+                });
+                
+                // Grid density control
+                document.getElementById('gridDensity').addEventListener('input', (e) => {
+                    const density = parseInt(e.target.value);
+                    CONFIG.GRID_ROWS = density;
+                    CONFIG.GRID_COLS = Math.floor(density * 1.67); // Maintain aspect ratio
+                    this.gridManager = new GridManager(this.canvas, CONFIG.GRID_COLS, CONFIG.GRID_ROWS);
+                    this.rippleEngine = new RippleEngine(this.gridManager);
+                });
+                
+                // Window resize handler
+                window.addEventListener('resize', () => {
+                    this.gridManager.setupCanvas();
+                    this.gridManager.initializeGrid();
+                });
+            }
+
+            initializeFirebase() {
+                // Firebase configuration (replace with your config)
+                const firebaseConfig = {
+                    apiKey: "YOUR_API_KEY",
+                    authDomain: "YOUR_AUTH_DOMAIN",
+                    databaseURL: "YOUR_DATABASE_URL",
+                    projectId: "YOUR_PROJECT_ID",
+                    storageBucket: "YOUR_STORAGE_BUCKET",
+                    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+                    appId: "YOUR_APP_ID"
+                };
+                
+                // Uncomment these lines when you have Firebase configured
+                // firebase.initializeApp(firebaseConfig);
+                // const database = firebase.database();
+                
+                // Listen for new prompts
+                // database.ref('prompts').on('child_added', (snapshot) => {
+                //     const promptData = snapshot.val();
+                //     this.handleNewPrompt(promptData);
+                // });
+            }
+
+            handleNewPrompt(userData) {
+                // Add to statistics
+                this.statsManager.addPrompt(userData);
+                
+                // Create ripple at random position
+                const centerNode = this.gridManager.getRandomNode();
+                this.rippleEngine.addRipple(centerNode, userData);
+                
+                // Display prompt
+                this.promptDisplay.showPrompt(userData);
+                
+                // Special effects for milestones
+                if (this.statsManager.stats.totalPromptsToday % 100 === 0) {
+                    this.triggerMilestoneEffect();
+                }
+            }
+
+            triggerMilestoneEffect() {
+                // Flash all nodes briefly
+                this.gridManager.nodes.forEach(node => {
+                    node.targetBrightness = 1;
+                });
+                
+                setTimeout(() => {
+                    this.gridManager.nodes.forEach(node => {
+                        node.targetBrightness = 0;
+                    });
+                }, 500);
+            }
+
+            startAnimationLoop() {
+                const animate = (currentTime) => {
+                    if (!this.isRunning) return;
+                    
+                    const deltaTime = currentTime - this.lastFrameTime;
+                    this.lastFrameTime = currentTime;
+                    
+                    // Update components
+                    this.gridManager.update(deltaTime);
+                    this.rippleEngine.update(deltaTime);
+                    
+                    // Render
+                    this.gridManager.render();
+                    
+                    requestAnimationFrame(animate);
+                };
+                
+                requestAnimationFrame(animate);
+            }
+
+            // Demo mode for testing without Firebase
+            startDemoMode() {
+                const demoUsers = [
+                    { email: 'alice@deloitte.com', profilePicture: 'public/img/testimonial-1.png' },
+                    { email: 'bob@deloitte.com', profilePicture: 'public/img/testimonial-2.png' },
+                    { email: 'carol@deloitte.com', profilePicture: 'public/img/testimonial-3.png' },
+                    { email: 'david@deloitte.com', profilePicture: 'public/img/testimonial-1.png' },
+                    { email: 'emma@deloitte.com', profilePicture: 'public/img/testimonial-2.png' }
+                ];
+                
+                const demoPrompts = [
+                    'How can we optimize our supply chain using AI?',
+                    'Generate a quarterly report template for client presentations',
+                    'What are the latest trends in digital transformation?',
+                    'Create a risk assessment framework for cybersecurity',
+                    'Analyze the impact of remote work on productivity',
+                    'Develop a sustainability strategy for manufacturing',
+                    'What are best practices for data governance?',
+                    'Design a customer journey map for our new service'
+                ];
+                
+                // Generate random prompts
+                setInterval(() => {
+                    const user = demoUsers[Math.floor(Math.random() * demoUsers.length)];
+                    const prompt = demoPrompts[Math.floor(Math.random() * demoPrompts.length)];
+                    
+                    this.handleNewPrompt({
+                        ...user,
+                        content: prompt,
+                        timestamp: Date.now()
+                    });
+                }, 3000 + Math.random() * 4000); // Random interval between 3-7 seconds
+            }
+
+            stop() {
+                this.isRunning = false;
+            }
+        }
+
+        // Initialize application when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            window.pulseGrid = new PulseGridApp();
+        });
+    </script>
+</body>
+</html>
