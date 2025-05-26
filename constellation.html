@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-Time ChatGPT Prompt Constellation</title>
+    <title>Real-Time ChatGPT Prompt Constellation - V4 (Visual Debug)</title>
     <style>
         * {
             margin: 0;
@@ -457,6 +457,11 @@
         </div>
     </div>
 
+    <!-- Version Indicator -->
+    <div style="position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; padding: 5px 10px; border-radius: 15px; font-size: 12px; z-index: 1000;">
+        V4: Visual Debug
+    </div>
+
     <!-- Controls Panel -->
     <div class="controls-panel">
         <div class="controls-title">Controls</div>
@@ -611,9 +616,11 @@
                     this.maxVelocityBoost = null;
                 }
 
-                // Update position
-                this.x += this.vx;
-                this.y += this.vy;
+                // Update position (skip if node is being directly positioned)
+                if (!this.isExpanded) {
+                    this.x += this.vx;
+                    this.y += this.vy;
+                }
             }
 
             easeOut(t) {
@@ -873,9 +880,9 @@
                 // Apply regular forces (skip forces for nodes in expansion areas)
                 this.applyForces(interactionManager);
 
-                // Apply expansion forces AFTER regular forces if active
+                // Apply direct position manipulation if active
                 if (interactionManager && interactionManager.expansionActive && interactionManager.expansionCenter) {
-                    interactionManager.applyExpansionForces(interactionManager.expansionCenter.x, interactionManager.expansionCenter.y);
+                    interactionManager.applyExpansionPositions(interactionManager.expansionCenter.x, interactionManager.expansionCenter.y);
                 }
 
                 // Update node positions
@@ -900,23 +907,8 @@
             }
 
             applyInteractionForce(node1, node2, interactionManager = null) {
-                // Skip clustering forces if either node is in an expansion area
-                if (interactionManager && interactionManager.expansionActive && interactionManager.expansionCenter) {
-                    const expansionRadius = interactionManager.expansionRadius;
-                    const centerX = interactionManager.expansionCenter.x;
-                    const centerY = interactionManager.expansionCenter.y;
-                    
-                    const node1InExpansion = Math.sqrt((node1.x - centerX) ** 2 + (node1.y - centerY) ** 2) < expansionRadius;
-                    const node2InExpansion = Math.sqrt((node2.x - centerX) ** 2 + (node2.y - centerY) ** 2) < expansionRadius;
-                    
-                    if (node1InExpansion || node2InExpansion) {
-                        // Debug: Track when forces are skipped
-                        if (Math.random() < 0.001) { // Very occasional logging
-                            console.log(`Skipping forces between nodes at (${Math.round(node1.x)},${Math.round(node1.y)}) and (${Math.round(node2.x)},${Math.round(node2.y)})`);
-                        }
-                        return; // Skip all clustering forces for nodes in expansion area
-                    }
-                }
+                // With direct position manipulation, we let physics continue normally
+                // The position override happens after physics calculations
 
                 const dx = node2.x - node1.x;
                 const dy = node2.y - node1.y;
@@ -1082,6 +1074,7 @@
                 // Render expansion area if active
                 if (interactionManager && interactionManager.expansionActive && interactionManager.expansionCenter) {
                     this.renderExpansionArea(interactionManager.expansionCenter, interactionManager.expansionRadius);
+                    this.renderDebugMarkers(interactionManager);
                 }
 
                 // Render connections
@@ -1102,6 +1095,44 @@
                 this.ctx.beginPath();
                 this.ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
                 this.ctx.stroke();
+                this.ctx.restore();
+            }
+
+            renderDebugMarkers(interactionManager) {
+                if (!interactionManager.debugTargets) return;
+
+                this.ctx.save();
+                
+                // Draw expansion center as a bright marker
+                this.ctx.fillStyle = '#ff0000';
+                this.ctx.beginPath();
+                this.ctx.arc(interactionManager.expansionCenter.x, interactionManager.expansionCenter.y, 8, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Draw debug info for each target
+                interactionManager.debugTargets.forEach(target => {
+                    // Draw line from current to target position
+                    this.ctx.strokeStyle = '#00ff00';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.setLineDash([]);
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(target.currentX, target.currentY);
+                    this.ctx.lineTo(target.targetX, target.targetY);
+                    this.ctx.stroke();
+                    
+                    // Draw target position as green dot
+                    this.ctx.fillStyle = '#00ff00';
+                    this.ctx.beginPath();
+                    this.ctx.arc(target.targetX, target.targetY, 5, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    // Draw original position as blue dot
+                    this.ctx.fillStyle = '#0080ff';
+                    this.ctx.beginPath();
+                    this.ctx.arc(target.originalX, target.originalY, 4, 0, Math.PI * 2);
+                    this.ctx.fill();
+                });
+                
                 this.ctx.restore();
             }
 
@@ -1364,9 +1395,14 @@
                     this.expansionActive = true;
                     this.expansionCenter = { x: mousePos.x, y: mousePos.y };
                     this.canvas.style.cursor = 'crosshair'; // Visual indicator of expansion mode
+                    console.log(`EXPANSION ACTIVATED at (${mousePos.x}, ${mousePos.y})`);
                 } else if (!isDense && this.expansionActive) {
                     this.expansionActive = false;
                     this.expansionCenter = null;
+                    console.log(`EXPANSION DEACTIVATED`);
+                } else if (isDense && this.expansionActive) {
+                    // Update expansion center continuously while in dense area
+                    this.expansionCenter = { x: mousePos.x, y: mousePos.y };
                 }
 
                 // Handle node hover
@@ -1569,6 +1605,8 @@
                     return Math.sqrt(dx * dx + dy * dy) <= this.expansionRadius;
                 });
 
+                console.log(`Density check at (${Math.round(x)},${Math.round(y)}): found ${nearbyNodes.length} nearby nodes`);
+
                 if (nearbyNodes.length < 3) return false;
 
                 // Check if nodes are overlapping (too close)
@@ -1582,44 +1620,99 @@
                     }
                 }
 
-                return overlaps >= 2; // At least 2 overlapping pairs indicates density
+                const isDense = overlaps >= 2;
+                console.log(`Density result: ${overlaps} overlaps, isDense: ${isDense}`);
+                return isDense;
             }
 
-            // Apply expansion forces to spread nodes apart
-            applyExpansionForces(centerX, centerY) {
+            // Direct position manipulation - bypass physics entirely
+            applyExpansionPositions(centerX, centerY) {
                 const nodes = this.physicsEngine.nodes;
-                const expansionStrength = 5.0; // Moderate strength since clustering forces are disabled
                 let affectedNodes = 0;
+                
+                // Clear previous debug data
+                this.debugTargets = [];
 
                 nodes.forEach(node => {
                     const dx = node.x - centerX;
                     const dy = node.y - centerY;
                     const distance = Math.sqrt(dx * dx + dy * dy);
 
-                    if (distance < this.expansionRadius && distance > 0) {
-                        // Apply outward force proportional to closeness
-                        const force = expansionStrength * (1 - distance / this.expansionRadius);
-                        const forceX = (dx / distance) * force;
-                        const forceY = (dy / distance) * force;
+                    if (distance < this.expansionRadius) {
+                        // Store original position if not already stored
+                        if (!node.originalPosition) {
+                            node.originalPosition = { x: node.x, y: node.y };
+                        }
 
-                        node.applyForce(forceX, forceY);
-                        
-                        // Temporarily boost max velocity for expansion
-                        node.maxVelocityBoost = 10; // Allow faster movement during expansion
-                        affectedNodes++;
+                        // Calculate target expanded position
+                        const expansionDistance = 60; // Minimum separation distance
+                        if (distance < expansionDistance && distance > 0) {
+                            const targetX = centerX + (dx / distance) * expansionDistance;
+                            const targetY = centerY + (dy / distance) * expansionDistance;
+                            
+                            // Store debug info for visual rendering
+                            this.debugTargets.push({
+                                currentX: node.x,
+                                currentY: node.y,
+                                targetX: targetX,
+                                targetY: targetY,
+                                originalX: node.originalPosition.x,
+                                originalY: node.originalPosition.y
+                            });
+                            
+                            // Smoothly interpolate to target position
+                            const lerpFactor = 0.1; // Smooth animation
+                            const newX = node.x + (targetX - node.x) * lerpFactor;
+                            const newY = node.y + (targetY - node.y) * lerpFactor;
+                            
+                            console.log(`Node moving: (${Math.round(node.x)},${Math.round(node.y)}) -> (${Math.round(newX)},${Math.round(newY)}) target: (${Math.round(targetX)},${Math.round(targetY)})`);
+                            
+                            node.x = newX;
+                            node.y = newY;
+                            
+                            // Clear velocity to prevent physics interference
+                            node.vx = 0;
+                            node.vy = 0;
+                            
+                            node.isExpanded = true;
+                            affectedNodes++;
+                        }
                     }
                 });
 
-                // Debug output (only log occasionally to avoid spam)
-                if (Math.random() < 0.01) { // 1% chance per frame
-                    console.log(`Expansion: affecting ${affectedNodes} nodes with strength ${expansionStrength}`);
-                }
+                // Debug output
+                console.log(`Direct positioning: affecting ${affectedNodes} nodes at center (${Math.round(centerX)},${Math.round(centerY)})`);
+            }
+
+            // Restore nodes to original positions when expansion ends
+            restoreOriginalPositions() {
+                this.physicsEngine.nodes.forEach(node => {
+                    if (node.isExpanded && node.originalPosition) {
+                        // Smoothly animate back to original position
+                        const lerpFactor = 0.15; // Slightly faster return
+                        node.x += (node.originalPosition.x - node.x) * lerpFactor;
+                        node.y += (node.originalPosition.y - node.y) * lerpFactor;
+                        
+                        // Check if close enough to original position
+                        const dx = node.x - node.originalPosition.x;
+                        const dy = node.y - node.originalPosition.y;
+                        if (Math.sqrt(dx * dx + dy * dy) < 2) {
+                            // Close enough, restore completely
+                            node.x = node.originalPosition.x;
+                            node.y = node.originalPosition.y;
+                            node.isExpanded = false;
+                            node.originalPosition = null;
+                        }
+                    }
+                });
             }
 
             // Update method to handle expansion
             update() {
-                // Expansion forces are now applied in PhysicsEngine.update()
-                // This just maintains the expansion state
+                if (!this.expansionActive) {
+                    // Restore positions when not expanding
+                    this.restoreOriginalPositions();
+                }
             }
         }
 
