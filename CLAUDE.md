@@ -29,6 +29,16 @@ npx http-server .
 # Server runs on http://localhost:8080
 ```
 
+## Testing & Debugging
+
+- **Demo Mode**: Application automatically runs in demo mode when Firebase is not configured
+- **Settings Panel**: Access via gear icon in top-right to adjust parameters in real-time:
+  - Ripple speed (1-20 nodes/second)
+  - Grid density (maintaining 1.67 aspect ratio)
+  - Toggle avatars and particle effects
+- **Visual Debugging**: Statistics in header show live metrics for monitoring performance
+- **Auto-generated Test Data**: Demo prompts generated every 3-7 seconds for continuous testing
+
 ## Key Features
 
 - **Real-time grid animation**: Breathing grid effect with configurable parameters
@@ -48,11 +58,17 @@ npx http-server .
 
 ## Configuration
 
-The application uses a `CONFIG` object in the JavaScript for adjusting visual parameters:
-- Grid dimensions, colors, animations speeds
-- Ripple behavior and timing
-- Display durations and effects
-- Demo mode settings
+The application uses a `CONFIG` object (lines 647-668 in `index.html`) for adjusting visual parameters:
+- **Grid settings**: 50x30 grid, node colors and opacity
+- **Ripple behavior**: Speed (5 nodes/second), duration (3s), max radius (15)
+- **Visual effects**: Avatar size (60px), display duration (5s), particle count (30)
+- **Performance**: Max 10 active ripples, breathing animation speed
+- **Demo mode**: Auto-generation timing and test data arrays
+
+Key configurable aspects:
+- All timing and animation parameters are centralized
+- Settings panel provides live adjustment without restart
+- Maintains 1.67 aspect ratio when changing grid density
 
 ## Firebase Integration
 
