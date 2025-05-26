@@ -18,6 +18,17 @@
             overflow: hidden;
             height: 100vh;
             position: relative;
+            display: flex;
+        }
+
+        .main-content {
+            flex: 1;
+            position: relative;
+            transition: margin-left 0.3s ease-out;
+        }
+
+        .main-content.with-feed {
+            margin-left: var(--feed-width, 320px);
         }
 
         #canvas {
@@ -123,25 +134,25 @@
             bottom: 0;
             left: 0;
             right: 0;
-            min-height: 100px;
-            max-height: 300px;
+            min-height: 80px;
+            max-height: 200px;
             background: rgba(0, 0, 0, 0.7);
             backdrop-filter: blur(10px);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            padding: 15px;
             z-index: 10;
             transition: height 0.3s ease-out;
         }
 
         .prompt-text {
-            font-size: 18px;
+            font-size: 16px;
             max-width: 90%;
             text-align: center;
-            line-height: 1.4;
-            max-height: 200px;
+            line-height: 1.3;
+            max-height: 120px;
             overflow-y: auto;
             overflow-x: hidden;
             transform: translateY(20px);
@@ -165,6 +176,7 @@
         .prompt-text.medium {
             display: -webkit-box;
             -webkit-line-clamp: 3;
+            line-clamp: 3;
             -webkit-box-orient: vertical;
             overflow: hidden;
             white-space: normal;
@@ -236,23 +248,28 @@
         }
 
         .settings-toggle {
-            position: absolute;
+            position: fixed;
             top: 100px;
-            right: -40px;
+            right: 20px;
             width: 40px;
             height: 40px;
             background: rgba(96, 165, 250, 0.8);
             border: none;
-            border-radius: 8px 0 0 8px;
+            border-radius: 8px;
             color: white;
             font-size: 18px;
             cursor: pointer;
             z-index: 16;
-            transition: background 0.3s ease;
+            transition: all 0.3s ease;
         }
 
         .settings-toggle:hover {
             background: rgba(96, 165, 250, 1);
+            transform: scale(1.05);
+        }
+
+        .settings-toggle.panel-open {
+            right: 0px;
         }
 
         /* Background Particles */
@@ -264,6 +281,198 @@
             border-radius: 50%;
             pointer-events: none;
             z-index: 0;
+        }
+
+        /* Prompt Feed Sidebar */
+        .prompt-feed {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 320px;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(96, 165, 250, 0.2);
+            box-shadow: 2px 0 20px rgba(0, 0, 0, 0.3);
+            z-index: 5;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease-out;
+            overflow: hidden;
+            min-width: 250px;
+            max-width: 600px;
+        }
+
+        .prompt-feed.show {
+            transform: translateX(0);
+        }
+
+        .prompt-feed.resizing {
+            transition: none;
+        }
+
+        .resize-handle {
+            position: absolute;
+            right: 0;
+            top: 0;
+            width: 5px;
+            height: 100%;
+            background: rgba(96, 165, 250, 0.3);
+            cursor: ew-resize;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .resize-handle:hover {
+            opacity: 1;
+            background: rgba(96, 165, 250, 0.6);
+        }
+
+        .prompt-feed:hover .resize-handle {
+            opacity: 0.7;
+        }
+
+        .prompt-feed-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(96, 165, 250, 0.2);
+            background: rgba(96, 165, 250, 0.1);
+        }
+
+        .prompt-feed-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #60a5fa;
+            margin: 0;
+        }
+
+        .prompt-feed-subtitle {
+            font-size: 12px;
+            opacity: 0.7;
+            margin: 5px 0 0 0;
+        }
+
+        .prompt-feed-toggle {
+            position: fixed;
+            left: -25px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 50px;
+            height: 80px;
+            background: rgba(96, 165, 250, 0.8);
+            border: none;
+            border-radius: 0 12px 12px 0;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            z-index: 20;
+        }
+
+        .prompt-feed-toggle:hover {
+            background: rgba(96, 165, 250, 1);
+            left: 5px;
+        }
+
+        .prompt-feed-container {
+            height: calc(100vh - 80px);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .prompt-feed-scroll {
+            height: 100%;
+            overflow-y: hidden;
+            padding: 0;
+            position: relative;
+        }
+
+        .prompt-item {
+            display: flex;
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: linear-gradient(135deg, rgba(96, 165, 250, 0.05) 0%, rgba(96, 165, 250, 0.02) 100%);
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .prompt-item.entering {
+            transform: translateY(-20px);
+            opacity: 0;
+        }
+
+        .prompt-item.exiting {
+            transform: translateY(20px);
+            opacity: 0;
+        }
+
+        .prompt-item:hover {
+            background: linear-gradient(135deg, rgba(96, 165, 250, 0.15) 0%, rgba(96, 165, 250, 0.08) 100%);
+            transform: translateX(5px);
+            box-shadow: 0 4px 20px rgba(96, 165, 250, 0.2);
+        }
+
+        .prompt-item.recent {
+            background: linear-gradient(135deg, rgba(96, 165, 250, 0.12) 0%, rgba(96, 165, 250, 0.06) 100%);
+            transform: scale(1.02);
+            box-shadow: 0 2px 15px rgba(96, 165, 250, 0.15);
+        }
+
+        .prompt-item.fading {
+            opacity: 0.6;
+        }
+
+        .prompt-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid rgba(96, 165, 250, 0.6);
+            margin-right: 12px;
+            flex-shrink: 0;
+            object-fit: cover;
+            box-shadow: 0 2px 8px rgba(96, 165, 250, 0.3);
+        }
+
+        .prompt-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .prompt-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .prompt-user {
+            font-size: 13px;
+            font-weight: 500;
+            color: #60a5fa;
+            margin: 0;
+        }
+
+        .prompt-time {
+            font-size: 11px;
+            opacity: 0.6;
+            white-space: nowrap;
+        }
+
+        .prompt-preview {
+            font-size: 13px;
+            line-height: 1.4;
+            opacity: 0.85;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            margin: 0;
         }
 
         .settings-panel h3 {
@@ -300,6 +509,7 @@
             border-radius: 10px;
             padding: 10px;
             z-index: 10;
+            display: none;
         }
 
         .activity-bar {
@@ -340,6 +550,23 @@
     </style>
 </head>
 <body>
+    <!-- Prompt Feed Sidebar -->
+    <div class="prompt-feed" id="promptFeed">
+        <div class="resize-handle" id="resizeHandle"></div>
+        <button class="prompt-feed-toggle" id="promptFeedToggle">FEED</button>
+        <div class="prompt-feed-header">
+            <h3 class="prompt-feed-title">Live Prompts</h3>
+            <p class="prompt-feed-subtitle">Real-time activity feed</p>
+        </div>
+        <div class="prompt-feed-container">
+            <div class="prompt-feed-scroll" id="promptFeedScroll">
+                <!-- Prompt items will be dynamically added here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content" id="mainContent">
     <!-- Loading Screen -->
     <div class="loading" id="loading">
         <div class="loading-spinner"></div>
@@ -375,9 +602,11 @@
         <div class="prompt-user" id="promptUser"></div>
     </div>
 
+    <!-- Settings Toggle Button -->
+    <button class="settings-toggle" id="settingsToggle">⚙️</button>
+
     <!-- Settings Panel -->
     <div class="settings-panel" id="settingsPanel">
-        <button class="settings-toggle" id="settingsToggle">⚙️</button>
         <h3>Settings</h3>
         <div class="setting-item">
             <label for="rippleSpeed">Ripple Speed</label>
@@ -398,6 +627,9 @@
                 <input type="checkbox" id="particleEffects" checked>
                 Particle Effects
             </label>
+        </div>
+        <div class="setting-item">
+            <button id="promptFeedToggleTemp" style="width: 100%; padding: 10px; background: #60a5fa; color: white; border: none; border-radius: 5px; cursor: pointer;">Toggle Prompt Feed</button>
         </div>
     </div>
 
@@ -814,7 +1046,7 @@
                         displayText = promptText;
                         
                         // Adjust display height for long prompts
-                        promptDisplay.style.minHeight = '180px';
+                        promptDisplay.style.minHeight = '120px';
                     }
                     
                     // Remove previous length classes
@@ -839,7 +1071,7 @@
                     setTimeout(() => {
                         promptTextEl.textContent = '';
                         promptUserEl.textContent = '';
-                        promptDisplay.style.minHeight = '100px'; // Reset height
+                        promptDisplay.style.minHeight = '80px'; // Reset height
                         promptTextEl.classList.remove('short', 'medium', 'long');
                     }, 500);
                 }, displayDuration);
@@ -916,6 +1148,257 @@
             }
         }
 
+        // Prompt Feed Manager
+        class PromptFeed {
+            constructor() {
+                this.feedElement = document.getElementById('promptFeed');
+                this.scrollElement = document.getElementById('promptFeedScroll');
+                this.toggleButton = document.getElementById('promptFeedToggle');
+                this.mainContent = document.getElementById('mainContent');
+                this.resizeHandle = document.getElementById('resizeHandle');
+                this.prompts = [];
+                this.isVisible = false;
+                this.scrollPosition = 0;
+                this.autoScrollSpeed = 0.5; // pixels per frame
+                this.maxPrompts = 50;
+                this.currentWidth = 320;
+                
+                this.initializeToggle();
+                this.initializeResize();
+                this.startAutoScroll();
+                this.updateTimestamps();
+            }
+
+            initializeToggle() {
+                this.toggleButton.addEventListener('click', () => {
+                    this.toggle();
+                });
+                
+                // Add temp button listener
+                document.getElementById('promptFeedToggleTemp').addEventListener('click', () => {
+                    this.toggle();
+                });
+            }
+
+            initializeResize() {
+                let isResizing = false;
+                let startX = 0;
+                let startWidth = 0;
+
+                this.resizeHandle.addEventListener('mousedown', (e) => {
+                    isResizing = true;
+                    startX = e.clientX;
+                    startWidth = this.currentWidth;
+                    
+                    this.feedElement.classList.add('resizing');
+                    document.body.style.cursor = 'ew-resize';
+                    document.body.style.userSelect = 'none';
+                    
+                    e.preventDefault();
+                });
+
+                document.addEventListener('mousemove', (e) => {
+                    if (!isResizing) return;
+                    
+                    const deltaX = e.clientX - startX;
+                    let newWidth = startWidth + deltaX;
+                    
+                    // Clamp width between min and max
+                    newWidth = Math.max(250, Math.min(600, newWidth));
+                    
+                    this.currentWidth = newWidth;
+                    this.feedElement.style.width = newWidth + 'px';
+                    
+                    // Update main content margin
+                    if (this.isVisible) {
+                        this.mainContent.style.setProperty('--feed-width', newWidth + 'px');
+                        this.mainContent.style.marginLeft = newWidth + 'px';
+                    }
+                });
+
+                document.addEventListener('mouseup', () => {
+                    if (isResizing) {
+                        isResizing = false;
+                        this.feedElement.classList.remove('resizing');
+                        document.body.style.cursor = '';
+                        document.body.style.userSelect = '';
+                    }
+                });
+            }
+
+            toggle() {
+                this.isVisible = !this.isVisible;
+                
+                if (this.isVisible) {
+                    this.feedElement.classList.add('show');
+                    this.mainContent.classList.add('with-feed');
+                    this.mainContent.style.setProperty('--feed-width', this.currentWidth + 'px');
+                    this.mainContent.style.marginLeft = this.currentWidth + 'px';
+                    this.toggleButton.textContent = '✕';
+                } else {
+                    this.feedElement.classList.remove('show');
+                    this.mainContent.classList.remove('with-feed');
+                    this.mainContent.style.marginLeft = '';
+                    this.toggleButton.textContent = 'FEED';
+                }
+            }
+
+            addPrompt(userData) {
+                const promptData = {
+                    id: Date.now() + Math.random(),
+                    user: userData.email || 'Anonymous',
+                    content: userData.content || 'New prompt',
+                    timestamp: new Date(),
+                    profilePicture: userData.profilePicture
+                };
+
+                this.prompts.push(promptData);
+                
+                // Limit number of prompts (remove oldest)
+                if (this.prompts.length > this.maxPrompts) {
+                    this.prompts = this.prompts.slice(-this.maxPrompts);
+                }
+
+                this.renderPrompts();
+                
+                // Auto-scroll to bottom to show newest prompt
+                setTimeout(() => {
+                    this.scrollElement.scrollTop = this.scrollElement.scrollHeight;
+                }, 50);
+            }
+
+            renderPrompts() {
+                // Clear existing content
+                this.scrollElement.innerHTML = '';
+                
+                this.prompts.forEach((prompt, index) => {
+                    const promptElement = this.createPromptElement(prompt, index);
+                    this.scrollElement.appendChild(promptElement);
+                    
+                    // Trigger entrance animation for newest prompt (last in array)
+                    if (index === this.prompts.length - 1) {
+                        promptElement.classList.add('entering');
+                        setTimeout(() => {
+                            promptElement.classList.remove('entering');
+                            promptElement.classList.add('recent');
+                            
+                            // Remove recent class after a delay
+                            setTimeout(() => {
+                                promptElement.classList.remove('recent');
+                            }, 3000);
+                        }, 50);
+                    }
+                    
+                    // Add fading effect for older prompts (earlier in array)
+                    if (index < this.prompts.length - 15) {
+                        promptElement.classList.add('fading');
+                    }
+                });
+            }
+
+            createPromptElement(prompt, index) {
+                const element = document.createElement('div');
+                element.className = 'prompt-item';
+                element.dataset.id = prompt.id;
+                
+                const timeAgo = this.getTimeAgo(prompt.timestamp);
+                const truncatedContent = this.truncateText(prompt.content, 120);
+                const avatarSrc = prompt.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(prompt.user)}&background=60a5fa&color=fff&size=32`;
+                
+                element.innerHTML = `
+                    <img class="prompt-avatar" src="${avatarSrc}" alt="${prompt.user}">
+                    <div class="prompt-content">
+                        <div class="prompt-header">
+                            <div class="prompt-user">${prompt.user}</div>
+                            <div class="prompt-time">${timeAgo}</div>
+                        </div>
+                        <p class="prompt-preview">${truncatedContent}</p>
+                    </div>
+                `;
+                
+                // Add click handler for interaction
+                element.addEventListener('click', () => {
+                    this.highlightPrompt(element);
+                });
+                
+                return element;
+            }
+
+            truncateText(text, maxLength) {
+                if (text.length <= maxLength) return text;
+                return text.substring(0, maxLength).trim() + '...';
+            }
+
+            getTimeAgo(timestamp) {
+                const now = new Date();
+                const diff = Math.floor((now - timestamp) / 1000);
+                
+                if (diff < 60) return 'now';
+                if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+                if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+                return `${Math.floor(diff / 86400)}d`;
+            }
+
+            highlightPrompt(element) {
+                // Remove previous highlights
+                this.scrollElement.querySelectorAll('.prompt-item').forEach(item => {
+                    item.style.background = '';
+                });
+                
+                // Highlight selected prompt
+                element.style.background = 'linear-gradient(135deg, rgba(96, 165, 250, 0.25) 0%, rgba(96, 165, 250, 0.15) 100%)';
+                
+                // Reset after delay
+                setTimeout(() => {
+                    element.style.background = '';
+                }, 2000);
+            }
+
+            startAutoScroll() {
+                let isScrolling = false;
+                
+                // Pause scrolling on hover
+                this.scrollElement.addEventListener('mouseenter', () => {
+                    isScrolling = true;
+                });
+                
+                this.scrollElement.addEventListener('mouseleave', () => {
+                    isScrolling = false;
+                });
+                
+                const scroll = () => {
+                    if (!isScrolling && this.isVisible && this.prompts.length > 0) {
+                        const maxScroll = this.scrollElement.scrollHeight - this.scrollElement.clientHeight;
+                        
+                        // If we're at the bottom, scroll back to top
+                        if (this.scrollPosition >= maxScroll) {
+                            this.scrollPosition = 0;
+                        } else {
+                            this.scrollPosition += this.autoScrollSpeed;
+                        }
+                        
+                        this.scrollElement.scrollTop = this.scrollPosition;
+                    }
+                    
+                    requestAnimationFrame(scroll);
+                };
+                
+                requestAnimationFrame(scroll);
+            }
+
+            updateTimestamps() {
+                // Update timestamps every minute
+                setInterval(() => {
+                    const timeElements = this.scrollElement.querySelectorAll('.prompt-time');
+                    timeElements.forEach((element, index) => {
+                        if (this.prompts[index]) {
+                            element.textContent = this.getTimeAgo(this.prompts[index].timestamp);
+                        }
+                    });
+                }, 60000);
+            }
+        }
+
         // Main Application
         class PulseGridApp {
             constructor() {
@@ -925,6 +1408,7 @@
                 this.statsManager = new StatisticsManager();
                 this.promptDisplay = new PromptDisplayController();
                 this.particleSystem = new ParticleSystem();
+                this.promptFeed = new PromptFeed();
                 this.lastFrameTime = 0;
                 this.isRunning = true;
                 
@@ -949,7 +1433,10 @@
                 // Settings panel toggle
                 document.getElementById('settingsToggle').addEventListener('click', () => {
                     const panel = document.getElementById('settingsPanel');
+                    const button = document.getElementById('settingsToggle');
+                    
                     panel.classList.toggle('show');
+                    button.classList.toggle('panel-open');
                 });
                 
                 // Ripple speed control
@@ -1004,6 +1491,9 @@
             handleNewPrompt(userData) {
                 // Add to statistics
                 this.statsManager.addPrompt(userData);
+                
+                // Add to prompt feed
+                this.promptFeed.addPrompt(userData);
                 
                 // Create ripple at random position
                 const centerNode = this.gridManager.getRandomNode();
@@ -1147,5 +1637,6 @@
             window.pulseGrid = new PulseGridApp();
         });
     </script>
+    </div> <!-- End main-content -->
 </body>
 </html>
