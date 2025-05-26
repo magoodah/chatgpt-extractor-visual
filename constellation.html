@@ -1,0 +1,1580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time ChatGPT Prompt Constellation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a365d 100%);
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+            position: relative;
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: grab;
+        }
+
+        #canvas:active {
+            cursor: grabbing;
+        }
+
+        /* Loading Screen */
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a365d 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease-out;
+        }
+
+        .loading.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 3px solid rgba(96, 165, 250, 0.3);
+            border-radius: 50%;
+            border-top-color: #60a5fa;
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 18px;
+            color: #60a5fa;
+            margin-bottom: 10px;
+        }
+
+        .loading-subtext {
+            font-size: 14px;
+            opacity: 0.7;
+        }
+
+        /* UI Overlays */
+        .title-overlay {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        .title-main {
+            font-size: 28px;
+            font-weight: 600;
+            color: #60a5fa;
+            text-shadow: 0 0 20px rgba(96, 165, 250, 0.5);
+            margin-bottom: 5px;
+        }
+
+        .title-sub {
+            font-size: 14px;
+            opacity: 0.7;
+        }
+
+        /* Stats Panel */
+        .stats-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(96, 165, 250, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+            min-width: 200px;
+            z-index: 100;
+        }
+
+        .stats-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #60a5fa;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .stat-label {
+            opacity: 0.8;
+        }
+
+        .stat-value {
+            color: #60a5fa;
+            font-weight: 500;
+        }
+
+        /* Legend Panel */
+        .legend-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(96, 165, 250, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+            min-width: 220px;
+            z-index: 100;
+        }
+
+        .legend-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #60a5fa;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 2px solid currentColor;
+            box-shadow: 0 0 8px currentColor;
+        }
+
+        .legend-name {
+            flex: 1;
+        }
+
+        .legend-count {
+            color: #60a5fa;
+            font-weight: 500;
+            margin-left: 10px;
+        }
+
+        /* Controls Panel */
+        .controls-panel {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(96, 165, 250, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+            z-index: 100;
+        }
+
+        .controls-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #60a5fa;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .control-btn {
+            width: 100%;
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            background: rgba(96, 165, 250, 0.1);
+            border: 1px solid rgba(96, 165, 250, 0.3);
+            border-radius: 8px;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .control-btn:hover {
+            background: rgba(96, 165, 250, 0.2);
+            border-color: rgba(96, 165, 250, 0.5);
+        }
+
+        .control-btn:active {
+            transform: translateY(1px);
+        }
+
+        .control-btn.active {
+            background: rgba(96, 165, 250, 0.3);
+            border-color: #60a5fa;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(96, 165, 250, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            max-width: 300px;
+            font-size: 14px;
+            line-height: 1.4;
+            z-index: 200;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s ease;
+        }
+
+        .tooltip.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .tooltip-content {
+            color: white;
+        }
+
+        .tooltip-user {
+            color: #60a5fa;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .tooltip-category {
+            color: #10b981;
+            font-size: 12px;
+            opacity: 0.8;
+            margin-bottom: 8px;
+        }
+
+        .tooltip-preview {
+            opacity: 0.9;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .title-main {
+                font-size: 22px;
+            }
+
+            .stats-panel,
+            .legend-panel,
+            .controls-panel {
+                padding: 15px;
+                min-width: 180px;
+            }
+
+            .stats-panel {
+                top: 15px;
+                right: 15px;
+            }
+
+            .legend-panel {
+                bottom: 15px;
+                left: 15px;
+            }
+
+            .controls-panel {
+                bottom: 15px;
+                right: 15px;
+            }
+        }
+
+        /* Background Particles */
+        .background-particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: rgba(96, 165, 250, 0.3);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div class="loading" id="loading">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Initializing Constellation</div>
+        <div class="loading-subtext">Generating prompts and calculating clusters...</div>
+    </div>
+
+    <!-- Main Canvas -->
+    <canvas id="canvas"></canvas>
+
+    <!-- UI Overlays -->
+    <div class="title-overlay">
+        <div class="title-main">Real-Time ChatGPT Prompt Constellation</div>
+        <div class="title-sub">Semantic clustering visualization</div>
+    </div>
+
+    <!-- Stats Panel -->
+    <div class="stats-panel">
+        <div class="stats-title">Statistics</div>
+        <div class="stat-item">
+            <span class="stat-label">Total Prompts:</span>
+            <span class="stat-value" id="totalPrompts">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Active Clusters:</span>
+            <span class="stat-value" id="activeClusters">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Most Active:</span>
+            <span class="stat-value" id="mostActive">-</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Prompts/Min:</span>
+            <span class="stat-value" id="promptsPerMin">0</span>
+        </div>
+    </div>
+
+    <!-- Legend Panel -->
+    <div class="legend-panel">
+        <div class="legend-title">Clusters</div>
+        <div id="legendItems">
+            <!-- Dynamically populated -->
+        </div>
+    </div>
+
+    <!-- Controls Panel -->
+    <div class="controls-panel">
+        <div class="controls-title">Controls</div>
+        <button class="control-btn active" id="playPauseBtn">⏸️ Pause</button>
+        <button class="control-btn" id="addPromptBtn">➕ Add Prompt</button>
+        <button class="control-btn" id="resetBtn">🔄 Reset</button>
+        <button class="control-btn active" id="connectionsBtn">🔗 Connections</button>
+    </div>
+
+    <!-- Tooltip -->
+    <div class="tooltip" id="tooltip">
+        <div class="tooltip-content">
+            <div class="tooltip-user" id="tooltipUser"></div>
+            <div class="tooltip-category" id="tooltipCategory"></div>
+            <div class="tooltip-preview" id="tooltipPreview"></div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const CONFIG = {
+            NODE_RADIUS: 20,
+            MIN_DISTANCE: 50,
+            ATTRACTION_STRENGTH: 0.0001,
+            REPULSION_STRENGTH: 500,
+            DAMPING: 0.95,
+            MAX_VELOCITY: 3,
+            CONNECTION_THRESHOLD: 0.7,
+            MAX_CONNECTIONS_PER_NODE: 5,
+            CLUSTER_MIN_SIZE: 3,
+            ANIMATION_SPEED: 1,
+            PARTICLE_COUNT: 40
+        };
+
+        // Color palette for clusters
+        const CLUSTER_COLORS = {
+            'data-analysis': '#2563eb',
+            'content-creation': '#7c3aed', 
+            'coding': '#059669',
+            'planning': '#ea580c',
+            'research': '#0891b2',
+            'communication': '#db2777'
+        };
+
+        const CLUSTER_NAMES = {
+            'data-analysis': 'Data Analysis',
+            'content-creation': 'Content Creation',
+            'coding': 'Coding',
+            'planning': 'Planning', 
+            'research': 'Research',
+            'communication': 'Communication'
+        };
+
+        // Stop words for semantic analysis
+        const STOP_WORDS = new Set([
+            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with',
+            'by', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them',
+            'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does',
+            'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'this', 'that',
+            'these', 'those', 'what', 'which', 'who', 'when', 'where', 'why', 'how'
+        ]);
+
+        // Prompt Node Class
+        class PromptNode {
+            constructor(prompt, x, y) {
+                this.id = prompt.id;
+                this.prompt = prompt;
+                this.x = x;
+                this.y = y;
+                this.vx = 0;
+                this.vy = 0;
+                this.radius = CONFIG.NODE_RADIUS;
+                this.scale = 0;
+                this.opacity = 0;
+                this.targetScale = 1;
+                this.targetOpacity = 1;
+                this.age = 0;
+                this.cluster = null;
+                this.highlighted = false;
+                this.pulsePhase = Math.random() * Math.PI * 2;
+                
+                // Animation timing
+                this.appearTime = Date.now();
+                this.isNew = true;
+                
+                // Keywords for clustering
+                this.keywords = this.extractKeywords(prompt.content);
+            }
+
+            extractKeywords(text) {
+                return text.toLowerCase()
+                    .replace(/[^\w\s]/g, ' ')
+                    .split(/\s+/)
+                    .filter(word => word.length > 2 && !STOP_WORDS.has(word))
+                    .slice(0, 20); // Limit to 20 most relevant words
+            }
+
+            update(deltaTime) {
+                this.age += deltaTime;
+                this.pulsePhase += deltaTime * 0.003;
+
+                // Handle new node animation
+                if (this.isNew) {
+                    const elapsed = Date.now() - this.appearTime;
+                    if (elapsed < 500) {
+                        // Materialization effect
+                        this.scale = this.easeOut(elapsed / 500) * this.targetScale;
+                        this.opacity = this.easeOut(elapsed / 500) * this.targetOpacity;
+                    } else {
+                        this.isNew = false;
+                        this.scale = this.targetScale;
+                        this.opacity = this.targetOpacity;
+                    }
+                } else {
+                    // Smooth scaling and opacity changes
+                    this.scale += (this.targetScale - this.scale) * 0.1;
+                    this.opacity += (this.targetOpacity - this.opacity) * 0.1;
+                }
+
+                // Age-based fading (but never below 0.3)
+                const ageFactor = Math.max(0.3, 1 - (this.age / 300000)); // 5 minutes
+                this.targetOpacity = this.highlighted ? 1 : ageFactor;
+
+                // Velocity damping
+                this.vx *= CONFIG.DAMPING;
+                this.vy *= CONFIG.DAMPING;
+
+                // Limit velocity
+                const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                if (speed > CONFIG.MAX_VELOCITY) {
+                    this.vx = (this.vx / speed) * CONFIG.MAX_VELOCITY;
+                    this.vy = (this.vy / speed) * CONFIG.MAX_VELOCITY;
+                }
+
+                // Update position
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+
+            easeOut(t) {
+                return 1 - Math.pow(1 - t, 3);
+            }
+
+            applyForce(fx, fy) {
+                this.vx += fx;
+                this.vy += fy;
+            }
+
+            distanceTo(other) {
+                const dx = this.x - other.x;
+                const dy = this.y - other.y;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            getColor() {
+                return this.cluster ? CLUSTER_COLORS[this.cluster] : '#60a5fa';
+            }
+
+            getPulseScale() {
+                return 1 + Math.sin(this.pulsePhase) * 0.05;
+            }
+        }
+
+        // Cluster Manager
+        class ClusterManager {
+            constructor() {
+                this.clusters = new Map();
+                this.similarities = new Map();
+            }
+
+            calculateSimilarity(node1, node2) {
+                const key = `${Math.min(node1.id, node2.id)}-${Math.max(node1.id, node2.id)}`;
+                
+                if (this.similarities.has(key)) {
+                    return this.similarities.get(key);
+                }
+
+                let score = 0;
+                const keywords1 = new Set(node1.keywords);
+                const keywords2 = new Set(node2.keywords);
+                
+                // Keyword overlap
+                const intersection = new Set([...keywords1].filter(x => keywords2.has(x)));
+                const union = new Set([...keywords1, ...keywords2]);
+                const jaccardSimilarity = intersection.size / union.size;
+                score += jaccardSimilarity * 0.6;
+
+                // Length similarity
+                const len1 = node1.prompt.content.length;
+                const len2 = node2.prompt.content.length;
+                const lengthSimilarity = 1 - Math.abs(len1 - len2) / Math.max(len1, len2);
+                score += lengthSimilarity * 0.2;
+
+                // Category similarity
+                if (node1.prompt.category === node2.prompt.category) {
+                    score += 0.2;
+                }
+
+                this.similarities.set(key, score);
+                return score;
+            }
+
+            updateClusters(nodes) {
+                // Reset clusters
+                this.clusters.clear();
+                nodes.forEach(node => node.cluster = null);
+
+                // Find clusters using similarity threshold
+                const processed = new Set();
+                
+                nodes.forEach(node => {
+                    if (processed.has(node.id)) return;
+
+                    const cluster = [node];
+                    const toProcess = [node];
+                    processed.add(node.id);
+
+                    while (toProcess.length > 0) {
+                        const current = toProcess.pop();
+                        
+                        nodes.forEach(other => {
+                            if (processed.has(other.id)) return;
+                            
+                            const similarity = this.calculateSimilarity(current, other);
+                            if (similarity > 0.6) {
+                                cluster.push(other);
+                                toProcess.push(other);
+                                processed.add(other.id);
+                            }
+                        });
+                    }
+
+                    // Only create cluster if it has minimum size
+                    if (cluster.length >= CONFIG.CLUSTER_MIN_SIZE) {
+                        const clusterCategory = this.findDominantCategory(cluster);
+                        const clusterId = `cluster_${this.clusters.size}`;
+                        
+                        this.clusters.set(clusterId, {
+                            id: clusterId,
+                            nodes: cluster,
+                            category: clusterCategory,
+                            color: CLUSTER_COLORS[clusterCategory] || '#60a5fa'
+                        });
+
+                        cluster.forEach(node => {
+                            node.cluster = clusterCategory;
+                        });
+                    }
+                });
+            }
+
+            findDominantCategory(nodes) {
+                const categoryCount = {};
+                nodes.forEach(node => {
+                    const cat = node.prompt.category;
+                    categoryCount[cat] = (categoryCount[cat] || 0) + 1;
+                });
+
+                return Object.keys(categoryCount).reduce((a, b) => 
+                    categoryCount[a] > categoryCount[b] ? a : b
+                );
+            }
+
+            getClusterStats() {
+                const stats = {};
+                this.clusters.forEach(cluster => {
+                    stats[cluster.category] = (stats[cluster.category] || 0) + cluster.nodes.length;
+                });
+                return stats;
+            }
+        }
+
+        // Physics Engine
+        class PhysicsEngine {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.nodes = [];
+                this.clusterManager = new ClusterManager();
+            }
+
+            addNode(node) {
+                this.nodes.push(node);
+                this.clusterManager.updateClusters(this.nodes);
+            }
+
+            removeOldNodes() {
+                const maxAge = 600000; // 10 minutes
+                this.nodes = this.nodes.filter(node => node.age < maxAge);
+            }
+
+            update(deltaTime) {
+                // Update clusters periodically
+                if (Math.random() < 0.01) { // 1% chance per frame
+                    this.clusterManager.updateClusters(this.nodes);
+                }
+
+                // Apply forces
+                this.applyForces();
+
+                // Update node positions
+                this.nodes.forEach(node => {
+                    node.update(deltaTime);
+                    this.constrainToBounds(node);
+                });
+
+                // Remove old nodes
+                this.removeOldNodes();
+            }
+
+            applyForces() {
+                for (let i = 0; i < this.nodes.length; i++) {
+                    const node1 = this.nodes[i];
+                    
+                    for (let j = i + 1; j < this.nodes.length; j++) {
+                        const node2 = this.nodes[j];
+                        this.applyInteractionForce(node1, node2);
+                    }
+                }
+            }
+
+            applyInteractionForce(node1, node2) {
+                const dx = node2.x - node1.x;
+                const dy = node2.y - node1.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance === 0) return;
+
+                const similarity = this.clusterManager.calculateSimilarity(node1, node2);
+                
+                // Repulsion force (always present to prevent overlap)
+                const repulsionForce = CONFIG.REPULSION_STRENGTH / (distance * distance);
+                const repulsionX = -(dx / distance) * repulsionForce;
+                const repulsionY = -(dy / distance) * repulsionForce;
+                
+                // Attraction force (only for similar nodes)
+                let attractionX = 0;
+                let attractionY = 0;
+                
+                if (similarity > 0.4) {
+                    const attractionForce = similarity * CONFIG.ATTRACTION_STRENGTH * distance;
+                    attractionX = (dx / distance) * attractionForce;
+                    attractionY = (dy / distance) * attractionForce;
+                }
+
+                // Apply combined forces
+                const totalForceX = repulsionX + attractionX;
+                const totalForceY = repulsionY + attractionY;
+
+                node1.applyForce(-totalForceX, -totalForceY);
+                node2.applyForce(totalForceX, totalForceY);
+            }
+
+            constrainToBounds(node) {
+                const margin = node.radius + 10;
+                
+                if (node.x < margin) {
+                    node.x = margin;
+                    node.vx = Math.abs(node.vx) * 0.7;
+                }
+                if (node.x > this.canvas.width - margin) {
+                    node.x = this.canvas.width - margin;
+                    node.vx = -Math.abs(node.vx) * 0.7;
+                }
+                if (node.y < margin) {
+                    node.y = margin;
+                    node.vy = Math.abs(node.vy) * 0.7;
+                }
+                if (node.y > this.canvas.height - margin) {
+                    node.y = this.canvas.height - margin;
+                    node.vy = -Math.abs(node.vy) * 0.7;
+                }
+            }
+
+            getConnections() {
+                const connections = [];
+                for (let i = 0; i < this.nodes.length; i++) {
+                    const node1 = this.nodes[i];
+                    let connectionCount = 0;
+                    
+                    for (let j = i + 1; j < this.nodes.length && connectionCount < CONFIG.MAX_CONNECTIONS_PER_NODE; j++) {
+                        const node2 = this.nodes[j];
+                        const similarity = this.clusterManager.calculateSimilarity(node1, node2);
+                        
+                        if (similarity > CONFIG.CONNECTION_THRESHOLD) {
+                            connections.push({
+                                node1,
+                                node2,
+                                similarity,
+                                opacity: similarity * 0.5
+                            });
+                            connectionCount++;
+                        }
+                    }
+                }
+                return connections;
+            }
+
+            findNodeAt(x, y) {
+                return this.nodes.find(node => {
+                    const dx = x - node.x;
+                    const dy = y - node.y;
+                    return Math.sqrt(dx * dx + dy * dy) <= node.radius;
+                });
+            }
+
+            highlightSimilarNodes(targetNode) {
+                this.nodes.forEach(node => {
+                    if (node === targetNode) {
+                        node.highlighted = true;
+                        node.targetScale = 1.3;
+                    } else {
+                        const similarity = this.clusterManager.calculateSimilarity(node, targetNode);
+                        node.highlighted = similarity > 0.5;
+                        node.targetScale = similarity > 0.5 ? 1.2 : 1.0;
+                    }
+                });
+            }
+
+            clearHighlights() {
+                this.nodes.forEach(node => {
+                    node.highlighted = false;
+                    node.targetScale = 1.0;
+                });
+            }
+        }
+
+        // Canvas Renderer
+        class CanvasRenderer {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.setupCanvas();
+                this.backgroundParticles = [];
+                this.createBackgroundParticles();
+            }
+
+            setupCanvas() {
+                this.resizeCanvas();
+                window.addEventListener('resize', () => this.resizeCanvas());
+            }
+
+            resizeCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+
+            createBackgroundParticles() {
+                for (let i = 0; i < CONFIG.PARTICLE_COUNT; i++) {
+                    this.backgroundParticles.push({
+                        x: Math.random() * this.canvas.width,
+                        y: Math.random() * this.canvas.height,
+                        vx: (Math.random() - 0.5) * 0.5,
+                        vy: (Math.random() - 0.5) * 0.5,
+                        opacity: 0.1 + Math.random() * 0.2
+                    });
+                }
+            }
+
+            updateBackgroundParticles() {
+                this.backgroundParticles.forEach(particle => {
+                    particle.x += particle.vx;
+                    particle.y += particle.vy;
+
+                    // Wrap around edges
+                    if (particle.x < 0) particle.x = this.canvas.width;
+                    if (particle.x > this.canvas.width) particle.x = 0;
+                    if (particle.y < 0) particle.y = this.canvas.height;
+                    if (particle.y > this.canvas.height) particle.y = 0;
+                });
+            }
+
+            render(physicsEngine, showConnections) {
+                // Clear canvas
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Update and render background particles
+                this.updateBackgroundParticles();
+                this.renderBackgroundParticles();
+
+                // Render cluster regions
+                this.renderClusterRegions(physicsEngine);
+
+                // Render connections
+                if (showConnections) {
+                    this.renderConnections(physicsEngine.getConnections());
+                }
+
+                // Render nodes
+                this.renderNodes(physicsEngine.nodes);
+            }
+
+            renderBackgroundParticles() {
+                this.ctx.save();
+                this.backgroundParticles.forEach(particle => {
+                    this.ctx.globalAlpha = particle.opacity;
+                    this.ctx.fillStyle = '#60a5fa';
+                    this.ctx.beginPath();
+                    this.ctx.arc(particle.x, particle.y, 1, 0, Math.PI * 2);
+                    this.ctx.fill();
+                });
+                this.ctx.restore();
+            }
+
+            renderClusterRegions(physicsEngine) {
+                physicsEngine.clusterManager.clusters.forEach(cluster => {
+                    if (cluster.nodes.length < CONFIG.CLUSTER_MIN_SIZE) return;
+
+                    const points = cluster.nodes.map(node => ({ x: node.x, y: node.y }));
+                    const hull = this.convexHull(points);
+                    
+                    if (hull.length < 3) return;
+
+                    // Expand hull outward
+                    const expandedHull = this.expandHull(hull, 40);
+
+                    this.ctx.save();
+                    this.ctx.globalAlpha = 0.1;
+                    this.ctx.fillStyle = cluster.color;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(expandedHull[0].x, expandedHull[0].y);
+                    for (let i = 1; i < expandedHull.length; i++) {
+                        this.ctx.lineTo(expandedHull[i].x, expandedHull[i].y);
+                    }
+                    this.ctx.closePath();
+                    this.ctx.fill();
+
+                    // Glowing border
+                    this.ctx.globalAlpha = 0.3;
+                    this.ctx.strokeStyle = cluster.color;
+                    this.ctx.lineWidth = 2;
+                    this.ctx.shadowBlur = 10;
+                    this.ctx.shadowColor = cluster.color;
+                    this.ctx.stroke();
+                    this.ctx.restore();
+
+                    // Cluster label
+                    if (cluster.nodes.length >= 5) {
+                        const center = this.getPolygonCenter(expandedHull);
+                        this.ctx.save();
+                        this.ctx.globalAlpha = 0.8;
+                        this.ctx.fillStyle = cluster.color;
+                        this.ctx.font = '14px system-ui';
+                        this.ctx.textAlign = 'center';
+                        this.ctx.textBaseline = 'middle';
+                        this.ctx.shadowBlur = 4;
+                        this.ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                        this.ctx.fillText(CLUSTER_NAMES[cluster.category] || cluster.category, center.x, center.y);
+                        this.ctx.restore();
+                    }
+                });
+            }
+
+            convexHull(points) {
+                if (points.length < 3) return points;
+
+                // Simple gift wrapping algorithm
+                const hull = [];
+                let leftmost = 0;
+                for (let i = 1; i < points.length; i++) {
+                    if (points[i].x < points[leftmost].x) leftmost = i;
+                }
+
+                let p = leftmost;
+                do {
+                    hull.push(points[p]);
+                    let q = (p + 1) % points.length;
+                    
+                    for (let i = 0; i < points.length; i++) {
+                        const cross = this.crossProduct(points[p], points[i], points[q]);
+                        if (cross > 0) q = i;
+                    }
+                    p = q;
+                } while (p !== leftmost);
+
+                return hull;
+            }
+
+            crossProduct(O, A, B) {
+                return (A.x - O.x) * (B.y - O.y) - (A.y - O.y) * (B.x - O.x);
+            }
+
+            expandHull(hull, distance) {
+                if (hull.length < 3) return hull;
+
+                const expanded = [];
+                for (let i = 0; i < hull.length; i++) {
+                    const curr = hull[i];
+                    const prev = hull[(i - 1 + hull.length) % hull.length];
+                    const next = hull[(i + 1) % hull.length];
+
+                    // Calculate inward normal
+                    const dx1 = curr.x - prev.x;
+                    const dy1 = curr.y - prev.y;
+                    const dx2 = next.x - curr.x;
+                    const dy2 = next.y - curr.y;
+
+                    const normal1x = -dy1;
+                    const normal1y = dx1;
+                    const normal2x = -dy2;
+                    const normal2y = dx2;
+
+                    const len1 = Math.sqrt(normal1x * normal1x + normal1y * normal1y);
+                    const len2 = Math.sqrt(normal2x * normal2x + normal2y * normal2y);
+
+                    const avgNormalX = (normal1x / len1 + normal2x / len2) / 2;
+                    const avgNormalY = (normal1y / len1 + normal2y / len2) / 2;
+                    const avgLen = Math.sqrt(avgNormalX * avgNormalX + avgNormalY * avgNormalY);
+
+                    expanded.push({
+                        x: curr.x + (avgNormalX / avgLen) * distance,
+                        y: curr.y + (avgNormalY / avgLen) * distance
+                    });
+                }
+
+                return expanded;
+            }
+
+            getPolygonCenter(points) {
+                let cx = 0, cy = 0;
+                points.forEach(p => {
+                    cx += p.x;
+                    cy += p.y;
+                });
+                return { x: cx / points.length, y: cy / points.length };
+            }
+
+            renderConnections(connections) {
+                this.ctx.save();
+                connections.forEach(conn => {
+                    this.ctx.globalAlpha = conn.opacity * 0.6;
+                    this.ctx.strokeStyle = '#60a5fa';
+                    this.ctx.lineWidth = 1;
+                    this.ctx.setLineDash([5, 5]);
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(conn.node1.x, conn.node1.y);
+                    this.ctx.lineTo(conn.node2.x, conn.node2.y);
+                    this.ctx.stroke();
+                });
+                this.ctx.restore();
+            }
+
+            renderNodes(nodes) {
+                nodes.forEach(node => {
+                    this.ctx.save();
+                    this.ctx.globalAlpha = node.opacity;
+
+                    const scale = node.scale * node.getPulseScale();
+                    const radius = node.radius * scale;
+                    const color = node.getColor();
+
+                    // Glow effect
+                    this.ctx.shadowBlur = node.highlighted ? 25 : 15;
+                    this.ctx.shadowColor = color;
+
+                    // Avatar circle background
+                    this.ctx.fillStyle = color;
+                    this.ctx.beginPath();
+                    this.ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+                    this.ctx.fill();
+
+                    // Avatar border
+                    this.ctx.strokeStyle = '#ffffff';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.stroke();
+
+                    // Avatar image placeholder (simplified as initials)
+                    this.ctx.shadowBlur = 0;
+                    this.ctx.fillStyle = '#ffffff';
+                    this.ctx.font = `${12 * scale}px system-ui`;
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                    const initials = node.prompt.user.name.split(' ').map(n => n[0]).join('').toUpperCase();
+                    this.ctx.fillText(initials, node.x, node.y);
+
+                    this.ctx.restore();
+                });
+            }
+        }
+
+        // Interaction Manager
+        class InteractionManager {
+            constructor(canvas, physicsEngine, tooltip) {
+                this.canvas = canvas;
+                this.physicsEngine = physicsEngine;
+                this.tooltip = tooltip;
+                this.isDragging = false;
+                this.lastMousePos = { x: 0, y: 0 };
+                this.hoveredNode = null;
+
+                this.setupEventListeners();
+            }
+
+            setupEventListeners() {
+                // Mouse events
+                this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                this.canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+                this.canvas.addEventListener('click', (e) => this.handleClick(e));
+                this.canvas.addEventListener('mouseleave', () => this.handleMouseLeave());
+
+                // Touch events for mobile
+                this.canvas.addEventListener('touchstart', (e) => this.handleTouchStart(e));
+                this.canvas.addEventListener('touchmove', (e) => this.handleTouchMove(e));
+                this.canvas.addEventListener('touchend', (e) => this.handleTouchEnd(e));
+            }
+
+            getMousePos(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                return {
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top
+                };
+            }
+
+            handleMouseMove(e) {
+                const mousePos = this.getMousePos(e);
+                const node = this.physicsEngine.findNodeAt(mousePos.x, mousePos.y);
+
+                if (node !== this.hoveredNode) {
+                    if (this.hoveredNode) {
+                        this.hideTooltip();
+                    }
+                    this.hoveredNode = node;
+                    if (node) {
+                        this.showTooltip(node, e.clientX, e.clientY);
+                    }
+                }
+
+                if (node) {
+                    this.canvas.style.cursor = 'pointer';
+                } else {
+                    this.canvas.style.cursor = this.isDragging ? 'grabbing' : 'grab';
+                }
+
+                this.lastMousePos = mousePos;
+            }
+
+            handleMouseDown(e) {
+                this.isDragging = true;
+                this.canvas.style.cursor = 'grabbing';
+            }
+
+            handleMouseUp(e) {
+                this.isDragging = false;
+                this.canvas.style.cursor = 'grab';
+            }
+
+            handleClick(e) {
+                const mousePos = this.getMousePos(e);
+                const node = this.physicsEngine.findNodeAt(mousePos.x, mousePos.y);
+
+                if (node) {
+                    this.physicsEngine.highlightSimilarNodes(node);
+                    setTimeout(() => this.physicsEngine.clearHighlights(), 3000);
+                } else {
+                    this.physicsEngine.clearHighlights();
+                }
+            }
+
+            handleMouseLeave() {
+                this.hideTooltip();
+                this.hoveredNode = null;
+                this.isDragging = false;
+                this.canvas.style.cursor = 'grab';
+            }
+
+            handleTouchStart(e) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                this.handleMouseDown({ clientX: touch.clientX, clientY: touch.clientY });
+            }
+
+            handleTouchMove(e) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                this.handleMouseMove({ 
+                    clientX: touch.clientX, 
+                    clientY: touch.clientY,
+                    target: this.canvas
+                });
+            }
+
+            handleTouchEnd(e) {
+                e.preventDefault();
+                this.handleMouseUp({});
+            }
+
+            showTooltip(node, x, y) {
+                const tooltip = this.tooltip;
+                const userEl = document.getElementById('tooltipUser');
+                const categoryEl = document.getElementById('tooltipCategory');
+                const previewEl = document.getElementById('tooltipPreview');
+
+                userEl.textContent = node.prompt.user.name;
+                categoryEl.textContent = CLUSTER_NAMES[node.prompt.category] || node.prompt.category;
+                previewEl.textContent = node.prompt.content;
+
+                // Position tooltip
+                tooltip.style.left = x + 15 + 'px';
+                tooltip.style.top = y - 10 + 'px';
+                
+                // Adjust if tooltip goes off screen
+                const rect = tooltip.getBoundingClientRect();
+                if (rect.right > window.innerWidth) {
+                    tooltip.style.left = x - rect.width - 15 + 'px';
+                }
+                if (rect.bottom > window.innerHeight) {
+                    tooltip.style.top = y - rect.height + 10 + 'px';
+                }
+
+                tooltip.classList.add('show');
+            }
+
+            hideTooltip() {
+                this.tooltip.classList.remove('show');
+            }
+        }
+
+        // Prompt Data Generator
+        class PromptGenerator {
+            constructor() {
+                this.users = this.generateUsers();
+                this.prompts = this.generatePrompts();
+                this.currentIndex = 0;
+            }
+
+            generateUsers() {
+                const names = [
+                    'Alex', 'Jordan', 'Taylor', 'Casey', 'Morgan', 'Riley', 'Sage', 'Quinn',
+                    'Avery', 'Blake', 'Cameron', 'Drew', 'Emery', 'Finley', 'Harper', 'Indigo'
+                ];
+
+                return names.map((name, i) => ({
+                    name: name,
+                    email: `${name.toLowerCase()}@company.com`,
+                    avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${['2563eb', '7c3aed', '059669', 'ea580c', '0891b2', 'db2777'][i % 6]}&color=fff&size=40`
+                }));
+            }
+
+            generatePrompts() {
+                const prompts = [
+                    // Data Analysis - Short prompts
+                    {
+                        content: "How can I analyze customer churn data to identify at-risk segments?",
+                        category: "data-analysis"
+                    },
+                    {
+                        content: "Create a dashboard showing monthly revenue trends and forecasts.",
+                        category: "data-analysis"
+                    },
+                    {
+                        content: "What statistical methods work best for A/B testing results?",
+                        category: "data-analysis"
+                    },
+
+                    // Data Analysis - Long prompts
+                    {
+                        content: "I need help developing a comprehensive data analysis framework for our e-commerce platform that can track user behavior patterns, conversion rates, and sales performance across multiple channels. The framework should include automated reporting capabilities, predictive analytics for inventory management, and real-time dashboards for stakeholder visibility. Please provide recommendations for data collection strategies, appropriate analytical models, and visualization techniques that would be most effective for identifying growth opportunities and operational inefficiencies. Additionally, I'd like guidance on implementing machine learning algorithms to enhance personalization and customer segmentation efforts.",
+                        category: "data-analysis"
+                    },
+
+                    // Content Creation - Short prompts
+                    {
+                        content: "Write a professional email announcing our new product launch.",
+                        category: "content-creation"
+                    },
+                    {
+                        content: "Generate social media content for our sustainability initiative.",
+                        category: "content-creation"
+                    },
+                    {
+                        content: "Create engaging blog post headlines about remote work productivity.",
+                        category: "content-creation"
+                    },
+
+                    // Content Creation - Long prompts
+                    {
+                        content: "Please help me create a comprehensive content marketing strategy for our B2B software company that targets mid-market enterprises. The strategy should include detailed buyer personas, content pillars that align with our sales funnel stages, and a 12-month editorial calendar covering blog posts, whitepapers, case studies, webinars, and social media content. I need specific recommendations for content formats that perform best in our industry, distribution channels that maximize reach and engagement, and metrics for measuring content effectiveness and ROI. The strategy should also address how we can repurpose content across different platforms while maintaining brand consistency and thought leadership positioning.",
+                        category: "content-creation"
+                    },
+
+                    // Coding - Short prompts
+                    {
+                        content: "Create a Python script that processes CSV files and generates reports.",
+                        category: "coding"
+                    },
+                    {
+                        content: "Debug this JavaScript function that's causing memory leaks.",
+                        category: "coding"
+                    },
+                    {
+                        content: "Optimize SQL queries for better database performance.",
+                        category: "coding"
+                    },
+
+                    // Coding - Long prompts
+                    {
+                        content: "I'm building a microservices architecture for a large-scale e-commerce application and need guidance on implementing a robust event-driven system that can handle high-throughput transactions while maintaining data consistency across services. The system should include service discovery, load balancing, circuit breakers, and comprehensive monitoring capabilities. Please provide detailed recommendations for technology stack selection, including message brokers, databases, caching layers, and deployment strategies using containerization and orchestration tools. I also need best practices for API design, error handling, security implementation, and testing strategies that ensure reliable service communication and graceful failure handling in a distributed environment.",
+                        category: "coding"
+                    },
+
+                    // Planning - Short prompts
+                    {
+                        content: "Develop a project timeline for our office relocation.",
+                        category: "planning"
+                    },
+                    {
+                        content: "Create a budget allocation strategy for next quarter.",
+                        category: "planning"
+                    },
+                    {
+                        content: "Plan a staff training program for new software implementation.",
+                        category: "planning"
+                    },
+
+                    // Planning - Long prompts
+                    {
+                        content: "I need to develop a comprehensive strategic plan for digital transformation across our traditional manufacturing company that has been operating with legacy systems for over two decades. The plan should address technology modernization, workforce development, process automation, supply chain digitization, and customer experience enhancement while minimizing disruption to ongoing operations. Please help me create a phased implementation roadmap that includes risk assessment, change management strategies, budget considerations, timeline milestones, and success metrics. The plan should also consider integration challenges, cybersecurity requirements, regulatory compliance, and how to maintain competitive advantage during the transition period while building capabilities for future growth and innovation.",
+                        category: "planning"
+                    },
+
+                    // Research - Short prompts
+                    {
+                        content: "Research current trends in artificial intelligence and automation.",
+                        category: "research"
+                    },
+                    {
+                        content: "Analyze competitor pricing strategies in our market segment.",
+                        category: "research"
+                    },
+                    {
+                        content: "Investigate best practices for sustainable business operations.",
+                        category: "research"
+                    },
+
+                    // Research - Long prompts
+                    {
+                        content: "Please conduct a comprehensive market research analysis for our proposed expansion into the Southeast Asian markets, focusing specifically on Indonesia, Thailand, and Vietnam. The research should cover market size and growth projections, competitive landscape analysis, regulatory environment and compliance requirements, cultural considerations that impact product positioning, distribution channel preferences, pricing sensitivity studies, and consumer behavior patterns. I need detailed insights into local partnership opportunities, potential barriers to entry, recommended market entry strategies, and financial projections for the first three years of operations. Additionally, provide recommendations for adapting our current product offerings to meet local preferences and requirements while maintaining our core value proposition.",
+                        category: "research"
+                    },
+
+                    // Communication - Short prompts
+                    {
+                        content: "Draft a presentation for the board meeting next week.",
+                        category: "communication"
+                    },
+                    {
+                        content: "Prepare talking points for the customer feedback session.",
+                        category: "communication"
+                    },
+                    {
+                        content: "Write an internal memo about policy updates.",
+                        category: "communication"
+                    },
+
+                    // Communication - Long prompts
+                    {
+                        content: "I need help developing a comprehensive internal communication strategy for managing a major organizational restructuring that will affect approximately 500 employees across multiple departments and locations. The strategy should address how to communicate timeline details, role changes, reporting structure modifications, and potential layoffs while maintaining employee morale, productivity, and trust in leadership. Please provide guidance on creating clear, transparent messaging that addresses employee concerns, establishing multiple communication channels for feedback and questions, developing FAQ documents for managers to handle difficult conversations, and implementing a change management communication plan that supports employees through the transition. The strategy should also include crisis communication protocols, stakeholder alignment processes, and methods for measuring communication effectiveness throughout the restructuring period.",
+                        category: "communication"
+                    },
+
+                    // Additional diverse prompts for clustering
+                    {
+                        content: "Generate automated test cases for our API endpoints.",
+                        category: "coding"
+                    },
+                    {
+                        content: "What's the ROI calculation for our marketing campaigns?",
+                        category: "data-analysis"
+                    },
+                    {
+                        content: "Design a customer onboarding email sequence.",
+                        category: "content-creation"
+                    },
+                    {
+                        content: "Schedule team meetings for the product launch preparation.",
+                        category: "planning"
+                    },
+                    {
+                        content: "Study industry benchmarks for customer satisfaction scores.",
+                        category: "research"
+                    },
+                    {
+                        content: "Present quarterly results to stakeholders effectively.",
+                        category: "communication"
+                    }
+                ];
+
+                // Shuffle and assign random users and timestamps
+                return prompts.map((prompt, index) => ({
+                    id: `prompt_${index}_${Date.now()}`,
+                    content: prompt.content,
+                    category: prompt.category,
+                    user: this.users[Math.floor(Math.random() * this.users.length)],
+                    timestamp: new Date(Date.now() - Math.random() * 3600000) // Random time in last hour
+                })).sort(() => Math.random() - 0.5); // Shuffle
+            }
+
+            getNextPrompt() {
+                if (this.currentIndex >= this.prompts.length) {
+                    this.currentIndex = 0;
+                }
+                return this.prompts[this.currentIndex++];
+            }
+
+            getRandomPrompt() {
+                return this.prompts[Math.floor(Math.random() * this.prompts.length)];
+            }
+        }
+
+        // Main Constellation App
+        class ConstellationApp {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.renderer = new CanvasRenderer(this.canvas);
+                this.physicsEngine = new PhysicsEngine(this.canvas);
+                this.promptGenerator = new PromptGenerator();
+                this.interactionManager = new InteractionManager(
+                    this.canvas, 
+                    this.physicsEngine, 
+                    document.getElementById('tooltip')
+                );
+
+                this.isRunning = true;
+                this.showConnections = true;
+                this.lastFrameTime = 0;
+                this.promptCounter = 0;
+                this.startTime = Date.now();
+
+                this.initializeControls();
+                this.startInitialAnimation();
+                this.startAnimationLoop();
+            }
+
+            initializeControls() {
+                // Play/Pause button
+                document.getElementById('playPauseBtn').addEventListener('click', () => {
+                    this.isRunning = !this.isRunning;
+                    const btn = document.getElementById('playPauseBtn');
+                    btn.textContent = this.isRunning ? '⏸️ Pause' : '▶️ Play';
+                    btn.classList.toggle('active', this.isRunning);
+                });
+
+                // Add prompt button
+                document.getElementById('addPromptBtn').addEventListener('click', () => {
+                    this.addRandomPrompt();
+                });
+
+                // Reset button
+                document.getElementById('resetBtn').addEventListener('click', () => {
+                    this.resetVisualization();
+                });
+
+                // Connections toggle
+                document.getElementById('connectionsBtn').addEventListener('click', () => {
+                    this.showConnections = !this.showConnections;
+                    const btn = document.getElementById('connectionsBtn');
+                    btn.textContent = this.showConnections ? '🔗 Connections' : '🚫 Connections';
+                    btn.classList.toggle('active', this.showConnections);
+                });
+            }
+
+            startInitialAnimation() {
+                // Hide loading screen after initial setup
+                setTimeout(() => {
+                    document.getElementById('loading').classList.add('hidden');
+                }, 1000);
+
+                // Add initial prompts with staggered timing
+                let initialPrompts = 20;
+                const addInitialPrompt = () => {
+                    if (initialPrompts > 0) {
+                        this.addRandomPrompt();
+                        initialPrompts--;
+                        setTimeout(addInitialPrompt, 200 + Math.random() * 300);
+                    } else {
+                        // Start continuous prompt generation
+                        this.startContinuousGeneration();
+                    }
+                };
+
+                setTimeout(addInitialPrompt, 1500);
+            }
+
+            startContinuousGeneration() {
+                const addPromptPeriodically = () => {
+                    if (this.isRunning) {
+                        this.addRandomPrompt();
+                    }
+                    // Random interval between 2-6 seconds
+                    setTimeout(addPromptPeriodically, 2000 + Math.random() * 4000);
+                };
+
+                setTimeout(addPromptPeriodically, 3000);
+            }
+
+            addRandomPrompt() {
+                const prompt = this.promptGenerator.getNextPrompt();
+                
+                // Random edge position for entry
+                const margin = 50;
+                let x, y;
+                const side = Math.floor(Math.random() * 4);
+                
+                switch (side) {
+                    case 0: // Top
+                        x = margin + Math.random() * (this.canvas.width - 2 * margin);
+                        y = margin;
+                        break;
+                    case 1: // Right
+                        x = this.canvas.width - margin;
+                        y = margin + Math.random() * (this.canvas.height - 2 * margin);
+                        break;
+                    case 2: // Bottom
+                        x = margin + Math.random() * (this.canvas.width - 2 * margin);
+                        y = this.canvas.height - margin;
+                        break;
+                    case 3: // Left
+                        x = margin;
+                        y = margin + Math.random() * (this.canvas.height - 2 * margin);
+                        break;
+                }
+
+                const node = new PromptNode(prompt, x, y);
+                this.physicsEngine.addNode(node);
+                this.promptCounter++;
+            }
+
+            resetVisualization() {
+                this.physicsEngine.nodes = [];
+                this.promptCounter = 0;
+                this.startTime = Date.now();
+                this.promptGenerator.currentIndex = 0;
+                
+                // Add a few initial prompts
+                setTimeout(() => {
+                    for (let i = 0; i < 5; i++) {
+                        setTimeout(() => this.addRandomPrompt(), i * 500);
+                    }
+                }, 500);
+            }
+
+            updateStatistics() {
+                const nodes = this.physicsEngine.nodes;
+                const clusters = this.physicsEngine.clusterManager.clusters;
+                const clusterStats = this.physicsEngine.clusterManager.getClusterStats();
+                
+                // Update stats panel
+                document.getElementById('totalPrompts').textContent = nodes.length;
+                document.getElementById('activeClusters').textContent = clusters.size;
+                
+                // Find most active category
+                const mostActive = Object.keys(clusterStats).reduce((a, b) => 
+                    clusterStats[a] > clusterStats[b] ? a : b, Object.keys(clusterStats)[0]
+                );
+                document.getElementById('mostActive').textContent = mostActive ? 
+                    CLUSTER_NAMES[mostActive] || mostActive : '-';
+
+                // Calculate prompts per minute
+                const minutesElapsed = (Date.now() - this.startTime) / 60000;
+                const promptsPerMin = minutesElapsed > 0 ? Math.round(this.promptCounter / minutesElapsed) : 0;
+                document.getElementById('promptsPerMin').textContent = promptsPerMin;
+
+                // Update legend
+                this.updateLegend(clusterStats);
+            }
+
+            updateLegend(clusterStats) {
+                const legendItems = document.getElementById('legendItems');
+                legendItems.innerHTML = '';
+
+                Object.keys(CLUSTER_COLORS).forEach(category => {
+                    const count = clusterStats[category] || 0;
+                    if (count > 0) {
+                        const item = document.createElement('div');
+                        item.className = 'legend-item';
+                        item.innerHTML = `
+                            <div class="legend-color" style="color: ${CLUSTER_COLORS[category]}"></div>
+                            <span class="legend-name">${CLUSTER_NAMES[category]}</span>
+                            <span class="legend-count">${count}</span>
+                        `;
+                        legendItems.appendChild(item);
+                    }
+                });
+            }
+
+            startAnimationLoop() {
+                const animate = (currentTime) => {
+                    const deltaTime = currentTime - this.lastFrameTime;
+                    this.lastFrameTime = currentTime;
+
+                    if (this.isRunning) {
+                        this.physicsEngine.update(deltaTime);
+                    }
+
+                    this.renderer.render(this.physicsEngine, this.showConnections);
+                    this.updateStatistics();
+
+                    requestAnimationFrame(animate);
+                };
+
+                requestAnimationFrame(animate);
+            }
+        }
+
+        // Initialize the application when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            window.constellation = new ConstellationApp();
+        });
+    </script>
+</body>
+</html>
