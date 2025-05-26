@@ -870,8 +870,8 @@
                     this.clusterUpdateCounter = 0;
                 }
 
-                // Apply regular forces
-                this.applyForces();
+                // Apply regular forces (skip forces for nodes in expansion areas)
+                this.applyForces(interactionManager);
 
                 // Apply expansion forces AFTER regular forces if active
                 if (interactionManager && interactionManager.expansionActive && interactionManager.expansionCenter) {
@@ -888,18 +888,36 @@
                 this.removeOldNodes();
             }
 
-            applyForces() {
+            applyForces(interactionManager = null) {
                 for (let i = 0; i < this.nodes.length; i++) {
                     const node1 = this.nodes[i];
                     
                     for (let j = i + 1; j < this.nodes.length; j++) {
                         const node2 = this.nodes[j];
-                        this.applyInteractionForce(node1, node2);
+                        this.applyInteractionForce(node1, node2, interactionManager);
                     }
                 }
             }
 
-            applyInteractionForce(node1, node2) {
+            applyInteractionForce(node1, node2, interactionManager = null) {
+                // Skip clustering forces if either node is in an expansion area
+                if (interactionManager && interactionManager.expansionActive && interactionManager.expansionCenter) {
+                    const expansionRadius = interactionManager.expansionRadius;
+                    const centerX = interactionManager.expansionCenter.x;
+                    const centerY = interactionManager.expansionCenter.y;
+                    
+                    const node1InExpansion = Math.sqrt((node1.x - centerX) ** 2 + (node1.y - centerY) ** 2) < expansionRadius;
+                    const node2InExpansion = Math.sqrt((node2.x - centerX) ** 2 + (node2.y - centerY) ** 2) < expansionRadius;
+                    
+                    if (node1InExpansion || node2InExpansion) {
+                        // Debug: Track when forces are skipped
+                        if (Math.random() < 0.001) { // Very occasional logging
+                            console.log(`Skipping forces between nodes at (${Math.round(node1.x)},${Math.round(node1.y)}) and (${Math.round(node2.x)},${Math.round(node2.y)})`);
+                        }
+                        return; // Skip all clustering forces for nodes in expansion area
+                    }
+                }
+
                 const dx = node2.x - node1.x;
                 const dy = node2.y - node1.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
@@ -1308,7 +1326,7 @@
                 this.hoveredCluster = null;
                 this.expansionActive = false;
                 this.expansionCenter = null;
-                this.expansionRadius = 80;
+                this.expansionRadius = 150; // Larger radius to keep nodes protected while spreading
 
                 this.setupEventListeners();
             }
@@ -1570,7 +1588,7 @@
             // Apply expansion forces to spread nodes apart
             applyExpansionForces(centerX, centerY) {
                 const nodes = this.physicsEngine.nodes;
-                const expansionStrength = 50.0; // MUCH stronger to overcome clustering forces
+                const expansionStrength = 5.0; // Moderate strength since clustering forces are disabled
                 let affectedNodes = 0;
 
                 nodes.forEach(node => {
