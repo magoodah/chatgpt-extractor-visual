@@ -279,6 +279,97 @@
             opacity: 0.9;
         }
 
+        /* Cluster Tooltip */
+        .cluster-tooltip {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(96, 165, 250, 0.4);
+            border-radius: 12px;
+            padding: 16px;
+            max-width: 350px;
+            font-size: 14px;
+            line-height: 1.4;
+            z-index: 200;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .cluster-tooltip.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .cluster-tooltip-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .cluster-tooltip-title {
+            color: #60a5fa;
+            font-weight: 600;
+            font-size: 16px;
+            margin-right: 8px;
+        }
+
+        .cluster-tooltip-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .cluster-tooltip-count {
+            background: rgba(96, 165, 250, 0.2);
+            color: #60a5fa;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .cluster-keywords {
+            margin-bottom: 12px;
+        }
+
+        .cluster-keywords-title {
+            color: #10b981;
+            font-weight: 500;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+
+        .keyword-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .keyword-tag {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .keyword-frequency {
+            opacity: 0.7;
+            font-size: 10px;
+            margin-left: 4px;
+        }
+
+        .cluster-description {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 13px;
+            line-height: 1.3;
+        }
+
         /* Responsive Design */
         @media (max-width: 768px) {
             .title-main {
@@ -375,13 +466,27 @@
         <button class="control-btn active" id="connectionsBtn">🔗 Connections</button>
     </div>
 
-    <!-- Tooltip -->
+    <!-- Node Tooltip -->
     <div class="tooltip" id="tooltip">
         <div class="tooltip-content">
             <div class="tooltip-user" id="tooltipUser"></div>
             <div class="tooltip-category" id="tooltipCategory"></div>
             <div class="tooltip-preview" id="tooltipPreview"></div>
         </div>
+    </div>
+
+    <!-- Cluster Tooltip -->
+    <div class="cluster-tooltip" id="clusterTooltip">
+        <div class="cluster-tooltip-header">
+            <div class="cluster-tooltip-indicator" id="clusterIndicator"></div>
+            <div class="cluster-tooltip-title" id="clusterTitle"></div>
+            <div class="cluster-tooltip-count" id="clusterCount"></div>
+        </div>
+        <div class="cluster-keywords" id="clusterKeywords">
+            <div class="cluster-keywords-title">Shared Keywords:</div>
+            <div class="keyword-list" id="keywordList"></div>
+        </div>
+        <div class="cluster-description" id="clusterDescription"></div>
     </div>
 
     <script>
@@ -395,7 +500,7 @@
             MAX_VELOCITY: 3,
             CONNECTION_THRESHOLD: 0.7,
             MAX_CONNECTIONS_PER_NODE: 5,
-            CLUSTER_MIN_SIZE: 3,
+            CLUSTER_MIN_SIZE: 2, // Lowered from 3 to 2
             ANIMATION_SPEED: 1,
             PARTICLE_COUNT: 40
         };
@@ -537,35 +642,98 @@
             }
 
             calculateSimilarity(node1, node2) {
-                const key = `${Math.min(node1.id, node2.id)}-${Math.max(node1.id, node2.id)}`;
-                
-                if (this.similarities.has(key)) {
-                    return this.similarities.get(key);
-                }
-
+                // Don't use caching during debugging
                 let score = 0;
                 const keywords1 = new Set(node1.keywords);
                 const keywords2 = new Set(node2.keywords);
                 
-                // Keyword overlap
+                // Keyword overlap using Jaccard similarity
                 const intersection = new Set([...keywords1].filter(x => keywords2.has(x)));
                 const union = new Set([...keywords1, ...keywords2]);
-                const jaccardSimilarity = intersection.size / union.size;
+                const jaccardSimilarity = union.size > 0 ? intersection.size / union.size : 0;
                 score += jaccardSimilarity * 0.6;
 
-                // Length similarity
+                // Length similarity  
                 const len1 = node1.prompt.content.length;
                 const len2 = node2.prompt.content.length;
-                const lengthSimilarity = 1 - Math.abs(len1 - len2) / Math.max(len1, len2);
+                const maxLen = Math.max(len1, len2);
+                const lengthSimilarity = maxLen > 0 ? 1 - Math.abs(len1 - len2) / maxLen : 0;
                 score += lengthSimilarity * 0.2;
 
-                // Category similarity
+                // Category bonus
                 if (node1.prompt.category === node2.prompt.category) {
                     score += 0.2;
                 }
 
-                this.similarities.set(key, score);
+                // Ensure score is between 0 and 1
+                score = Math.max(0, Math.min(1, score));
+                
                 return score;
+            }
+
+            // Extract shared keywords across cluster members
+            extractClusterKeywords(clusterNodes) {
+                const keywordCounts = {};
+                const totalNodes = clusterNodes.length;
+                
+                // Count keyword frequency across all nodes in cluster
+                clusterNodes.forEach(node => {
+                    node.keywords.forEach(keyword => {
+                        keywordCounts[keyword] = (keywordCounts[keyword] || 0) + 1;
+                    });
+                });
+
+                // Find keywords that appear in at least 50% of cluster nodes
+                const significantKeywords = Object.entries(keywordCounts)
+                    .filter(([keyword, count]) => count >= Math.max(2, totalNodes * 0.5))
+                    .sort((a, b) => b[1] - a[1]) // Sort by frequency
+                    .slice(0, 4) // Take top 4 keywords
+                    .map(([keyword, count]) => ({
+                        keyword,
+                        frequency: count,
+                        percentage: Math.round((count / totalNodes) * 100)
+                    }));
+
+                return significantKeywords;
+            }
+
+            // Generate dynamic cluster theme label
+            generateClusterTheme(clusterNodes) {
+                const keywords = this.extractClusterKeywords(clusterNodes);
+                
+                if (keywords.length === 0) {
+                    // Fallback to category if no shared keywords
+                    const category = this.findDominantCategory(clusterNodes);
+                    return {
+                        label: CLUSTER_NAMES[category] || category,
+                        keywords: [],
+                        isGeneric: true
+                    };
+                }
+
+                // Create smart label from keywords
+                const keywordLabels = keywords.map(k => k.keyword);
+                let label;
+
+                if (keywordLabels.length === 1) {
+                    label = keywordLabels[0];
+                } else if (keywordLabels.length === 2) {
+                    label = keywordLabels.join(' + ');
+                } else {
+                    label = keywordLabels.slice(0, 2).join(' + ') + '...';
+                }
+
+                return {
+                    label: this.capitalizeWords(label),
+                    keywords,
+                    isGeneric: false
+                };
+            }
+
+            capitalizeWords(str) {
+                return str.split(' ').map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1)
+                ).join(' ');
             }
 
             updateClusters(nodes) {
@@ -590,7 +758,7 @@
                             if (processed.has(other.id)) return;
                             
                             const similarity = this.calculateSimilarity(current, other);
-                            if (similarity > 0.6) {
+                            if (similarity > 0.3) { // Lowered from 0.4 to 0.3
                                 cluster.push(other);
                                 toProcess.push(other);
                                 processed.add(other.id);
@@ -598,20 +766,24 @@
                         });
                     }
 
-                    // Only create cluster if it has minimum size
-                    if (cluster.length >= CONFIG.CLUSTER_MIN_SIZE) {
+                    // Only create cluster if it has minimum size (lowered to 2)
+                    if (cluster.length >= 2) {
                         const clusterCategory = this.findDominantCategory(cluster);
                         const clusterId = `cluster_${this.clusters.size}`;
+                        const theme = this.generateClusterTheme(cluster);
                         
                         this.clusters.set(clusterId, {
                             id: clusterId,
                             nodes: cluster,
                             category: clusterCategory,
-                            color: CLUSTER_COLORS[clusterCategory] || '#60a5fa'
+                            color: CLUSTER_COLORS[clusterCategory] || '#60a5fa',
+                            theme: theme,
+                            sharedKeywords: theme.keywords
                         });
 
                         cluster.forEach(node => {
                             node.cluster = clusterCategory;
+                            node.clusterTheme = theme.label;
                         });
                     }
                 });
@@ -636,6 +808,32 @@
                 });
                 return stats;
             }
+
+            // Get cluster at specific coordinates for hover detection
+            getClusterAt(x, y, nodes) {
+                // Find if point is inside any cluster region
+                for (const [clusterId, cluster] of this.clusters) {
+                    const points = cluster.nodes.map(node => ({ x: node.x, y: node.y }));
+                    if (points.length < 3) continue;
+                    
+                    // Simple point-in-polygon test using cluster's convex hull
+                    if (this.isPointInCluster(x, y, points)) {
+                        return cluster;
+                    }
+                }
+                return null;
+            }
+
+            isPointInCluster(x, y, clusterPoints) {
+                // Expand cluster bounds slightly for easier hovering
+                const margin = 30;
+                let minX = Math.min(...clusterPoints.map(p => p.x)) - margin;
+                let maxX = Math.max(...clusterPoints.map(p => p.x)) + margin;
+                let minY = Math.min(...clusterPoints.map(p => p.y)) - margin;
+                let maxY = Math.max(...clusterPoints.map(p => p.y)) + margin;
+                
+                return x >= minX && x <= maxX && y >= minY && y <= maxY;
+            }
         }
 
         // Physics Engine
@@ -657,9 +855,13 @@
             }
 
             update(deltaTime) {
-                // Update clusters periodically
-                if (Math.random() < 0.01) { // 1% chance per frame
+                // Force cluster updates every 60 frames (~1 second) for debugging
+                if (!this.clusterUpdateCounter) this.clusterUpdateCounter = 0;
+                this.clusterUpdateCounter++;
+                
+                if (this.clusterUpdateCounter >= 60) {
                     this.clusterManager.updateClusters(this.nodes);
+                    this.clusterUpdateCounter = 0;
                 }
 
                 // Apply forces
@@ -901,18 +1103,38 @@
                     this.ctx.stroke();
                     this.ctx.restore();
 
-                    // Cluster label
-                    if (cluster.nodes.length >= 5) {
+                    // Dynamic cluster label with theme
+                    if (cluster.nodes.length >= 3) {
                         const center = this.getPolygonCenter(expandedHull);
+                        const theme = cluster.theme || { label: CLUSTER_NAMES[cluster.category] || cluster.category };
+                        
                         this.ctx.save();
-                        this.ctx.globalAlpha = 0.8;
+                        this.ctx.globalAlpha = 0.9;
                         this.ctx.fillStyle = cluster.color;
-                        this.ctx.font = '14px system-ui';
+                        
+                        // Adaptive font size based on cluster size
+                        const fontSize = Math.min(16, 12 + cluster.nodes.length * 0.5);
+                        this.ctx.font = `${fontSize}px system-ui`;
                         this.ctx.textAlign = 'center';
                         this.ctx.textBaseline = 'middle';
-                        this.ctx.shadowBlur = 4;
-                        this.ctx.shadowColor = 'rgba(0,0,0,0.5)';
-                        this.ctx.fillText(CLUSTER_NAMES[cluster.category] || cluster.category, center.x, center.y);
+                        
+                        // Enhanced shadow for better readability
+                        this.ctx.shadowBlur = 6;
+                        this.ctx.shadowColor = 'rgba(0,0,0,0.8)';
+                        this.ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+                        this.ctx.lineWidth = 3;
+                        
+                        // Draw text with outline for better visibility
+                        this.ctx.strokeText(theme.label, center.x, center.y);
+                        this.ctx.fillText(theme.label, center.x, center.y);
+                        
+                        // Add small indicator if this is a smart theme (not generic)
+                        if (theme.keywords && theme.keywords.length > 0) {
+                            this.ctx.globalAlpha = 0.6;
+                            this.ctx.font = '10px system-ui';
+                            this.ctx.fillText('●', center.x + this.ctx.measureText(theme.label).width / 2 + 8, center.y);
+                        }
+                        
                         this.ctx.restore();
                     }
                 });
@@ -1047,13 +1269,15 @@
 
         // Interaction Manager
         class InteractionManager {
-            constructor(canvas, physicsEngine, tooltip) {
+            constructor(canvas, physicsEngine, tooltip, clusterTooltip) {
                 this.canvas = canvas;
                 this.physicsEngine = physicsEngine;
                 this.tooltip = tooltip;
+                this.clusterTooltip = clusterTooltip;
                 this.isDragging = false;
                 this.lastMousePos = { x: 0, y: 0 };
                 this.hoveredNode = null;
+                this.hoveredCluster = null;
 
                 this.setupEventListeners();
             }
@@ -1083,7 +1307,9 @@
             handleMouseMove(e) {
                 const mousePos = this.getMousePos(e);
                 const node = this.physicsEngine.findNodeAt(mousePos.x, mousePos.y);
+                const cluster = this.physicsEngine.clusterManager.getClusterAt(mousePos.x, mousePos.y, this.physicsEngine.nodes);
 
+                // Handle node hover
                 if (node !== this.hoveredNode) {
                     if (this.hoveredNode) {
                         this.hideTooltip();
@@ -1091,10 +1317,34 @@
                     this.hoveredNode = node;
                     if (node) {
                         this.showTooltip(node, e.clientX, e.clientY);
+                        // Hide cluster tooltip when hovering on specific node
+                        this.hideClusterTooltip();
+                        this.hoveredCluster = null;
                     }
                 }
 
-                if (node) {
+                // Handle cluster hover (only when not hovering on a specific node)
+                if (!node && cluster !== this.hoveredCluster) {
+                    if (this.hoveredCluster) {
+                        this.hideClusterTooltip();
+                    }
+                    this.hoveredCluster = cluster;
+                    if (cluster) {
+                        this.showClusterTooltip(cluster, e.clientX, e.clientY);
+                        // Hide node tooltip when hovering on cluster
+                        this.hideTooltip();
+                        this.hoveredNode = null;
+                    }
+                }
+
+                // Clear cluster hover if not over cluster or node
+                if (!node && !cluster && this.hoveredCluster) {
+                    this.hideClusterTooltip();
+                    this.hoveredCluster = null;
+                }
+
+                // Set cursor
+                if (node || cluster) {
                     this.canvas.style.cursor = 'pointer';
                 } else {
                     this.canvas.style.cursor = this.isDragging ? 'grabbing' : 'grab';
@@ -1127,7 +1377,9 @@
 
             handleMouseLeave() {
                 this.hideTooltip();
+                this.hideClusterTooltip();
                 this.hoveredNode = null;
+                this.hoveredCluster = null;
                 this.isDragging = false;
                 this.canvas.style.cursor = 'grab';
             }
@@ -1181,6 +1433,70 @@
 
             hideTooltip() {
                 this.tooltip.classList.remove('show');
+            }
+
+            showClusterTooltip(cluster, x, y) {
+                const tooltip = this.clusterTooltip;
+                const titleEl = document.getElementById('clusterTitle');
+                const countEl = document.getElementById('clusterCount');
+                const indicatorEl = document.getElementById('clusterIndicator');
+                const keywordListEl = document.getElementById('keywordList');
+                const descriptionEl = document.getElementById('clusterDescription');
+                const keywordsSection = document.getElementById('clusterKeywords');
+
+                // Set cluster info
+                titleEl.textContent = cluster.theme?.label || (CLUSTER_NAMES[cluster.category] || cluster.category);
+                countEl.textContent = `${cluster.nodes.length} prompts`;
+                indicatorEl.style.backgroundColor = cluster.color;
+
+                // Show keywords if available
+                if (cluster.sharedKeywords && cluster.sharedKeywords.length > 0) {
+                    keywordsSection.style.display = 'block';
+                    keywordListEl.innerHTML = '';
+                    
+                    cluster.sharedKeywords.forEach(kwData => {
+                        const tag = document.createElement('div');
+                        tag.className = 'keyword-tag';
+                        tag.innerHTML = `${kwData.keyword}<span class="keyword-frequency">${kwData.percentage}%</span>`;
+                        keywordListEl.appendChild(tag);
+                    });
+                } else {
+                    keywordsSection.style.display = 'none';
+                }
+
+                // Generate description
+                const avgLength = Math.round(cluster.nodes.reduce((sum, node) => sum + node.prompt.content.length, 0) / cluster.nodes.length);
+                const categoryName = CLUSTER_NAMES[cluster.category] || cluster.category;
+                
+                let description = `${cluster.nodes.length} ${categoryName.toLowerCase()} prompts clustered by semantic similarity.`;
+                if (cluster.sharedKeywords && cluster.sharedKeywords.length > 0) {
+                    description += ` Average length: ${avgLength} characters.`;
+                } else {
+                    description += ` These prompts share similar themes and content patterns.`;
+                }
+                
+                descriptionEl.textContent = description;
+
+                // Position tooltip
+                tooltip.style.left = x + 15 + 'px';
+                tooltip.style.top = y - 10 + 'px';
+                
+                // Adjust if tooltip goes off screen
+                setTimeout(() => {
+                    const rect = tooltip.getBoundingClientRect();
+                    if (rect.right > window.innerWidth) {
+                        tooltip.style.left = x - rect.width - 15 + 'px';
+                    }
+                    if (rect.bottom > window.innerHeight) {
+                        tooltip.style.top = y - rect.height + 10 + 'px';
+                    }
+                }, 10);
+
+                tooltip.classList.add('show');
+            }
+
+            hideClusterTooltip() {
+                this.clusterTooltip.classList.remove('show');
             }
         }
 
@@ -1386,7 +1702,8 @@
                 this.interactionManager = new InteractionManager(
                     this.canvas, 
                     this.physicsEngine, 
-                    document.getElementById('tooltip')
+                    document.getElementById('tooltip'),
+                    document.getElementById('clusterTooltip')
                 );
 
                 this.isRunning = true;
