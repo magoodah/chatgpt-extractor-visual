@@ -29,6 +29,10 @@ npx http-server .
 # Server runs on http://localhost:8080
 ```
 
+## Development Workflow
+
+**IMPORTANT**: Only commit code when explicitly asked by the user. Always test locally first and wait for user confirmation before committing changes.
+
 ## Testing & Debugging
 
 - **Demo Mode**: Application automatically runs in demo mode when Firebase is not configured

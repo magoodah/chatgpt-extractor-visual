@@ -598,11 +598,17 @@
                 this.vx *= CONFIG.DAMPING;
                 this.vy *= CONFIG.DAMPING;
 
-                // Limit velocity
+                // Limit velocity (use boost if active, otherwise normal max)
+                const maxVel = this.maxVelocityBoost || CONFIG.MAX_VELOCITY;
                 const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-                if (speed > CONFIG.MAX_VELOCITY) {
-                    this.vx = (this.vx / speed) * CONFIG.MAX_VELOCITY;
-                    this.vy = (this.vy / speed) * CONFIG.MAX_VELOCITY;
+                if (speed > maxVel) {
+                    this.vx = (this.vx / speed) * maxVel;
+                    this.vy = (this.vy / speed) * maxVel;
+                }
+                
+                // Reset velocity boost after applying
+                if (this.maxVelocityBoost) {
+                    this.maxVelocityBoost = null;
                 }
 
                 // Update position
@@ -854,7 +860,7 @@
                 this.nodes = this.nodes.filter(node => node.age < maxAge);
             }
 
-            update(deltaTime) {
+            update(deltaTime, interactionManager = null) {
                 // Force cluster updates every 60 frames (~1 second) for debugging
                 if (!this.clusterUpdateCounter) this.clusterUpdateCounter = 0;
                 this.clusterUpdateCounter++;
@@ -864,8 +870,13 @@
                     this.clusterUpdateCounter = 0;
                 }
 
-                // Apply forces
+                // Apply regular forces
                 this.applyForces();
+
+                // Apply expansion forces AFTER regular forces if active
+                if (interactionManager && interactionManager.expansionActive && interactionManager.expansionCenter) {
+                    interactionManager.applyExpansionForces(interactionManager.expansionCenter.x, interactionManager.expansionCenter.y);
+                }
 
                 // Update node positions
                 this.nodes.forEach(node => {
@@ -1039,7 +1050,7 @@
                 });
             }
 
-            render(physicsEngine, showConnections) {
+            render(physicsEngine, showConnections, interactionManager) {
                 // Clear canvas
                 this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
@@ -1050,6 +1061,11 @@
                 // Render cluster regions
                 this.renderClusterRegions(physicsEngine);
 
+                // Render expansion area if active
+                if (interactionManager && interactionManager.expansionActive && interactionManager.expansionCenter) {
+                    this.renderExpansionArea(interactionManager.expansionCenter, interactionManager.expansionRadius);
+                }
+
                 // Render connections
                 if (showConnections) {
                     this.renderConnections(physicsEngine.getConnections());
@@ -1057,6 +1073,18 @@
 
                 // Render nodes
                 this.renderNodes(physicsEngine.nodes);
+            }
+
+            renderExpansionArea(center, radius) {
+                this.ctx.save();
+                this.ctx.globalAlpha = 0.15;
+                this.ctx.strokeStyle = '#60a5fa';
+                this.ctx.lineWidth = 2;
+                this.ctx.setLineDash([5, 5]);
+                this.ctx.beginPath();
+                this.ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+                this.ctx.stroke();
+                this.ctx.restore();
             }
 
             renderBackgroundParticles() {
@@ -1278,6 +1306,9 @@
                 this.lastMousePos = { x: 0, y: 0 };
                 this.hoveredNode = null;
                 this.hoveredCluster = null;
+                this.expansionActive = false;
+                this.expansionCenter = null;
+                this.expansionRadius = 80;
 
                 this.setupEventListeners();
             }
@@ -1309,6 +1340,17 @@
                 const node = this.physicsEngine.findNodeAt(mousePos.x, mousePos.y);
                 const cluster = this.physicsEngine.clusterManager.getClusterAt(mousePos.x, mousePos.y, this.physicsEngine.nodes);
 
+                // Handle expansion for dense cluster areas
+                const isDense = this.isDenseClusterArea(mousePos.x, mousePos.y);
+                if (isDense && !this.expansionActive) {
+                    this.expansionActive = true;
+                    this.expansionCenter = { x: mousePos.x, y: mousePos.y };
+                    this.canvas.style.cursor = 'crosshair'; // Visual indicator of expansion mode
+                } else if (!isDense && this.expansionActive) {
+                    this.expansionActive = false;
+                    this.expansionCenter = null;
+                }
+
                 // Handle node hover
                 if (node !== this.hoveredNode) {
                     if (this.hoveredNode) {
@@ -1323,8 +1365,8 @@
                     }
                 }
 
-                // Handle cluster hover (only when not hovering on a specific node)
-                if (!node && cluster !== this.hoveredCluster) {
+                // Handle cluster hover (only when not hovering on a specific node and not in expansion mode)
+                if (!node && !this.expansionActive && cluster !== this.hoveredCluster) {
                     if (this.hoveredCluster) {
                         this.hideClusterTooltip();
                     }
@@ -1343,8 +1385,10 @@
                     this.hoveredCluster = null;
                 }
 
-                // Set cursor
-                if (node || cluster) {
+                // Set cursor based on context
+                if (this.expansionActive) {
+                    this.canvas.style.cursor = 'crosshair';
+                } else if (node || cluster) {
                     this.canvas.style.cursor = 'pointer';
                 } else {
                     this.canvas.style.cursor = this.isDragging ? 'grabbing' : 'grab';
@@ -1497,6 +1541,67 @@
 
             hideClusterTooltip() {
                 this.clusterTooltip.classList.remove('show');
+            }
+
+            // Check if mouse is over a dense cluster area
+            isDenseClusterArea(x, y) {
+                const nearbyNodes = this.physicsEngine.nodes.filter(node => {
+                    const dx = node.x - x;
+                    const dy = node.y - y;
+                    return Math.sqrt(dx * dx + dy * dy) <= this.expansionRadius;
+                });
+
+                if (nearbyNodes.length < 3) return false;
+
+                // Check if nodes are overlapping (too close)
+                let overlaps = 0;
+                for (let i = 0; i < nearbyNodes.length; i++) {
+                    for (let j = i + 1; j < nearbyNodes.length; j++) {
+                        const distance = nearbyNodes[i].distanceTo(nearbyNodes[j]);
+                        if (distance < 50) { // Nodes closer than 50px are considered overlapping
+                            overlaps++;
+                        }
+                    }
+                }
+
+                return overlaps >= 2; // At least 2 overlapping pairs indicates density
+            }
+
+            // Apply expansion forces to spread nodes apart
+            applyExpansionForces(centerX, centerY) {
+                const nodes = this.physicsEngine.nodes;
+                const expansionStrength = 50.0; // MUCH stronger to overcome clustering forces
+                let affectedNodes = 0;
+
+                nodes.forEach(node => {
+                    const dx = node.x - centerX;
+                    const dy = node.y - centerY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < this.expansionRadius && distance > 0) {
+                        // Apply outward force proportional to closeness
+                        const force = expansionStrength * (1 - distance / this.expansionRadius);
+                        const forceX = (dx / distance) * force;
+                        const forceY = (dy / distance) * force;
+
+                        node.applyForce(forceX, forceY);
+                        
+                        // Temporarily boost max velocity for expansion
+                        node.maxVelocityBoost = 10; // Allow faster movement during expansion
+                        affectedNodes++;
+                    }
+                });
+
+                // Debug output (only log occasionally to avoid spam)
+                if (Math.random() < 0.01) { // 1% chance per frame
+                    console.log(`Expansion: affecting ${affectedNodes} nodes with strength ${expansionStrength}`);
+                }
+            }
+
+            // Update method to handle expansion
+            update() {
+                // Expansion forces are now applied in PhysicsEngine.update()
+                // This just maintains the expansion state
             }
         }
 
@@ -1875,10 +1980,11 @@
                     this.lastFrameTime = currentTime;
 
                     if (this.isRunning) {
-                        this.physicsEngine.update(deltaTime);
+                        this.interactionManager.update(); // Update expansion state
+                        this.physicsEngine.update(deltaTime, this.interactionManager); // Pass interactionManager
                     }
 
-                    this.renderer.render(this.physicsEngine, this.showConnections);
+                    this.renderer.render(this.physicsEngine, this.showConnections, this.interactionManager);
                     this.updateStatistics();
 
                     requestAnimationFrame(animate);
