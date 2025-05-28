@@ -547,6 +547,99 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        /* Thread Detail View */
+        .thread-detail-view {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(20px);
+            z-index: 10;
+            overflow-y: auto;
+        }
+
+        .thread-detail-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(96, 165, 250, 0.2);
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(20px);
+            position: sticky;
+            top: 0;
+            z-index: 11;
+        }
+
+        .back-button {
+            background: rgba(96, 165, 250, 0.8);
+            border: none;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-bottom: 10px;
+            transition: background 0.3s ease;
+        }
+
+        .back-button:hover {
+            background: rgba(96, 165, 250, 1);
+        }
+
+        .thread-title {
+            margin: 0;
+            color: #60a5fa;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .thread-detail-content {
+            padding: 20px;
+        }
+
+        .message-item {
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .message-item.user {
+            background: rgba(96, 165, 250, 0.1);
+            border-left: 4px solid #60a5fa;
+        }
+
+        .message-item.assistant {
+            background: rgba(34, 197, 94, 0.1);
+            border-left: 4px solid #22c55e;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .message-role {
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: capitalize;
+        }
+
+        .message-role.user {
+            color: #60a5fa;
+        }
+
+        .message-role.assistant {
+            color: #22c55e;
+        }
+
+        .message-content {
+            line-height: 1.5;
+            white-space: pre-wrap;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -561,6 +654,17 @@
         <div class="prompt-feed-container">
             <div class="prompt-feed-scroll" id="promptFeedScroll">
                 <!-- Prompt items will be dynamically added here -->
+            </div>
+            
+            <!-- Thread Detail View -->
+            <div class="thread-detail-view" id="threadDetailView" style="display: none;">
+                <div class="thread-detail-header">
+                    <button class="back-button" id="backButton">← Back to Feed</button>
+                    <h4 class="thread-title" id="threadTitle">Thread Details</h4>
+                </div>
+                <div class="thread-detail-content" id="threadDetailContent">
+                    <!-- Thread content will be dynamically added here -->
+                </div>
             </div>
         </div>
     </div>
@@ -660,8 +764,8 @@
     <script>
         // Configuration
         const CONFIG = {
-            GRID_COLS: 50,
-            GRID_ROWS: 30,
+            GRID_COLS: 13,
+            GRID_ROWS: 6,
             NODE_RADIUS: 3,
             NODE_BASE_COLOR: '#2563eb',
             NODE_ACTIVE_COLOR: '#60a5fa',
@@ -697,7 +801,13 @@
             }
 
             setupCanvas() {
-                const maxWidth = window.innerWidth * 0.9;
+                // Get available space, accounting for prompt feed if visible
+                const mainContent = document.getElementById('mainContent');
+                const feedWidth = mainContent.classList.contains('with-feed') ? 
+                    parseInt(mainContent.style.marginLeft) || 320 : 0;
+                
+                const availableWidth = window.innerWidth - feedWidth;
+                const maxWidth = availableWidth * 0.9;
                 const maxHeight = window.innerHeight * 0.7;
                 
                 this.nodeSpacing = Math.min(
@@ -1332,17 +1442,26 @@
                 this.toggleButton = document.getElementById('promptFeedToggle');
                 this.mainContent = document.getElementById('mainContent');
                 this.resizeHandle = document.getElementById('resizeHandle');
+                this.threadDetailView = document.getElementById('threadDetailView');
+                this.backButton = document.getElementById('backButton');
+                this.threadTitle = document.getElementById('threadTitle');
+                this.threadContent = document.getElementById('threadDetailContent');
                 this.prompts = [];
-                this.isVisible = false;
+                this.isVisible = true;  // Start open by default
                 this.scrollPosition = 0;
                 this.autoScrollSpeed = 0.5; // pixels per frame
                 this.maxPrompts = 50;
                 this.currentWidth = 320;
+                this.currentThread = null;
                 
                 this.initializeToggle();
                 this.initializeResize();
+                this.initializeThreadDetail();
                 this.startAutoScroll();
                 this.updateTimestamps();
+                
+                // Open the feed by default
+                this.showFeed();
             }
 
             initializeToggle() {
@@ -1389,6 +1508,11 @@
                     if (this.isVisible) {
                         this.mainContent.style.setProperty('--feed-width', newWidth + 'px');
                         this.mainContent.style.marginLeft = newWidth + 'px';
+                        
+                        // Trigger grid canvas resize
+                        if (window.pulseGrid && window.pulseGrid.gridManager) {
+                            window.pulseGrid.gridManager.setupCanvas();
+                        }
                     }
                 });
 
@@ -1401,22 +1525,52 @@
                     }
                 });
             }
+            
+            initializeThreadDetail() {
+                this.backButton.addEventListener('click', () => {
+                    this.hideThreadDetail();
+                });
+            }
 
             toggle() {
                 this.isVisible = !this.isVisible;
                 
                 if (this.isVisible) {
-                    this.feedElement.classList.add('show');
-                    this.mainContent.classList.add('with-feed');
-                    this.mainContent.style.setProperty('--feed-width', this.currentWidth + 'px');
-                    this.mainContent.style.marginLeft = this.currentWidth + 'px';
-                    this.toggleButton.textContent = '✕';
+                    this.showFeed();
                 } else {
-                    this.feedElement.classList.remove('show');
-                    this.mainContent.classList.remove('with-feed');
-                    this.mainContent.style.marginLeft = '';
-                    this.toggleButton.textContent = 'FEED';
+                    this.hideFeed();
                 }
+            }
+            
+            showFeed() {
+                this.isVisible = true;
+                this.feedElement.classList.add('show');
+                this.mainContent.classList.add('with-feed');
+                this.mainContent.style.setProperty('--feed-width', this.currentWidth + 'px');
+                this.mainContent.style.marginLeft = this.currentWidth + 'px';
+                this.toggleButton.textContent = '✕';
+                
+                // Trigger grid canvas resize after feed is shown
+                setTimeout(() => {
+                    if (window.pulseGrid && window.pulseGrid.gridManager) {
+                        window.pulseGrid.gridManager.setupCanvas();
+                    }
+                }, 100);
+            }
+            
+            hideFeed() {
+                this.isVisible = false;
+                this.feedElement.classList.remove('show');
+                this.mainContent.classList.remove('with-feed');
+                this.mainContent.style.marginLeft = '';
+                this.toggleButton.textContent = 'FEED';
+                
+                // Trigger grid canvas resize after feed is hidden
+                setTimeout(() => {
+                    if (window.pulseGrid && window.pulseGrid.gridManager) {
+                        window.pulseGrid.gridManager.setupCanvas();
+                    }
+                }, 100);
             }
 
             addPrompt(userData) {
@@ -1425,7 +1579,19 @@
                     user: userData.user || userData.email || 'Anonymous',
                     content: userData.content || userData.text || 'New prompt',
                     timestamp: userData.timestamp || new Date(),
-                    profilePicture: userData.avatar || userData.profilePicture
+                    profilePicture: userData.avatar || userData.profilePicture,
+                    // Store thread data for detail view
+                    messages: userData.messages || [
+                        {
+                            role: 'user',
+                            content: userData.content || userData.text || 'New prompt'
+                        },
+                        {
+                            role: 'assistant',
+                            content: 'Response content not available in demo mode.'
+                        }
+                    ],
+                    originalData: userData // Store original data for Firebase threads
                 };
 
                 this.prompts.push(promptData);
@@ -1492,9 +1658,58 @@
                     </div>
                 `;
                 
-                // Add click handler for interaction
+                // Add click handler to show thread details
                 element.addEventListener('click', () => {
-                    this.highlightPrompt(element);
+                    this.showThreadDetail(prompt);
+                });
+                
+                // Add hover effects to show corresponding node on grid with avatar
+                let hoverNode = null;
+                let hoverAvatar = null;
+                element.addEventListener('mouseenter', () => {
+                    // Get a random node to highlight for this prompt
+                    hoverNode = window.pulseGrid.gridManager.getRandomNode();
+                    if (hoverNode && window.pulseGrid) {
+                        hoverNode.targetBrightness = 1.0;
+                        hoverNode.isHovered = true;
+                        
+                        // Create temporary avatar for hover effect
+                        if (document.getElementById('showAvatars').checked) {
+                            hoverAvatar = document.createElement('img');
+                            hoverAvatar.className = 'avatar hover-avatar';
+                            hoverAvatar.src = prompt.profilePicture || avatarSrc;
+                            hoverAvatar.style.position = 'fixed';
+                            hoverAvatar.style.width = '60px';
+                            hoverAvatar.style.height = '60px';
+                            hoverAvatar.style.borderRadius = '50%';
+                            hoverAvatar.style.border = '3px solid #60a5fa';
+                            hoverAvatar.style.objectFit = 'cover';
+                            hoverAvatar.style.pointerEvents = 'none';
+                            hoverAvatar.style.zIndex = '1000';
+                            hoverAvatar.style.opacity = '0.9';
+                            hoverAvatar.style.transition = 'all 0.3s ease';
+                            
+                            const rect = window.pulseGrid.gridManager.canvas.getBoundingClientRect();
+                            hoverAvatar.style.left = rect.left + hoverNode.x - 30 + 'px';
+                            hoverAvatar.style.top = rect.top + hoverNode.y - 30 + 'px';
+                            
+                            document.body.appendChild(hoverAvatar);
+                        }
+                    }
+                });
+                
+                element.addEventListener('mouseleave', () => {
+                    // Remove highlight from the node
+                    if (hoverNode && hoverNode.isHovered) {
+                        hoverNode.targetBrightness = 0;
+                        hoverNode.isHovered = false;
+                    }
+                    
+                    // Remove hover avatar
+                    if (hoverAvatar) {
+                        hoverAvatar.remove();
+                        hoverAvatar = null;
+                    }
                 });
                 
                 return element;
@@ -1573,6 +1788,39 @@
                     });
                 }, 60000);
             }
+            
+            showThreadDetail(prompt) {
+                this.currentThread = prompt;
+                this.threadTitle.textContent = `Thread: ${prompt.user}`;
+                
+                // Clear previous content
+                this.threadContent.innerHTML = '';
+                
+                // Add messages to the thread detail view
+                prompt.messages.forEach(message => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `message-item ${message.role}`;
+                    
+                    messageDiv.innerHTML = `
+                        <div class="message-header">
+                            <span class="message-role ${message.role}">${message.role}</span>
+                        </div>
+                        <div class="message-content">${message.content}</div>
+                    `;
+                    
+                    this.threadContent.appendChild(messageDiv);
+                });
+                
+                // Show the thread detail view
+                this.threadDetailView.style.display = 'block';
+                this.scrollElement.style.display = 'none';
+            }
+            
+            hideThreadDetail() {
+                this.threadDetailView.style.display = 'none';
+                this.scrollElement.style.display = 'block';
+                this.currentThread = null;
+            }
         }
 
         // Main Application
@@ -1606,7 +1854,7 @@
                 // Hide loading screen
                 setTimeout(() => {
                     document.getElementById('loading').classList.add('hidden');
-                    document.getElementById('settingsPanel').classList.add('show');
+                    // Settings panel stays closed by default
                 }, 1000);
                 
                 // Start demo mode only if Firebase is not connected
@@ -1714,7 +1962,7 @@
                     });
                 });
                 
-                // Listen for new feedback
+                // Listen for new feedback (only for statistics, no visual ripples)
                 const feedbackQuery = query(
                     collection(this.db, 'feedback'),
                     orderBy('syncedAt', 'desc'),
@@ -1766,7 +2014,17 @@
                     timestamp: new Date(extraction.syncedAt),
                     messageCount: extraction.messageCount,
                     url: extraction.url,
-                    type: 'extraction'
+                    type: 'extraction',
+                    messages: extraction.messages || [
+                        {
+                            role: 'user',
+                            content: promptText
+                        },
+                        {
+                            role: 'assistant',
+                            content: 'Response data not available.'
+                        }
+                    ]
                 };
                 
                 // Add to statistics
@@ -1792,7 +2050,7 @@
             handleNewFeedback(feedback) {
                 console.log('⭐ New feedback:', feedback.rating, 'stars');
                 
-                // Create feedback ripple with different visual style
+                // Create feedback data for statistics only (no visual ripples)
                 const feedbackData = {
                     id: feedback.id,
                     text: `${feedback.rating}⭐ - ${feedback.sentiment}`,
@@ -1806,15 +2064,10 @@
                     type: 'feedback'
                 };
                 
-                // Create smaller, colored ripple for feedback
-                const centerNode = this.gridManager.getRandomNode();
-                this.rippleEngine.addFeedbackRipple(centerNode, feedbackData);
-                
-                // Add to feed
-                this.promptFeed.addPrompt(feedbackData);
-                
-                // Update statistics
+                // Only update statistics - no visual ripples for feedback
                 this.statsManager.addFeedback(feedbackData);
+                
+                // Note: Removed ripple creation and feed addition for cleaner visualization
             }
             
             handleUserUpdates(snapshot) {
