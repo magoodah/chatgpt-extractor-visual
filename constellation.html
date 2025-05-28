@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-Time ChatGPT Prompt Constellation - V4 (Visual Debug)</title>
+    <title>Real-Time ChatGPT Prompt Constellation - V5 (Locked Positions)</title>
     <style>
         * {
             margin: 0;
@@ -459,7 +459,7 @@
 
     <!-- Version Indicator -->
     <div style="position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; padding: 5px 10px; border-radius: 15px; font-size: 12px; z-index: 1000;">
-        V4: Visual Debug
+        V5: Locked Positions
     </div>
 
     <!-- Controls Panel -->
@@ -1394,16 +1394,16 @@
                 if (isDense && !this.expansionActive) {
                     this.expansionActive = true;
                     this.expansionCenter = { x: mousePos.x, y: mousePos.y };
+                    this.expansionLockedIn = false; // Will lock positions on first calculation
                     this.canvas.style.cursor = 'crosshair'; // Visual indicator of expansion mode
                     console.log(`EXPANSION ACTIVATED at (${mousePos.x}, ${mousePos.y})`);
                 } else if (!isDense && this.expansionActive) {
                     this.expansionActive = false;
                     this.expansionCenter = null;
+                    this.expansionLockedIn = false;
                     console.log(`EXPANSION DEACTIVATED`);
-                } else if (isDense && this.expansionActive) {
-                    // Update expansion center continuously while in dense area
-                    this.expansionCenter = { x: mousePos.x, y: mousePos.y };
                 }
+                // Remove the continuous update - keep expansion center fixed
 
                 // Handle node hover
                 if (node !== this.hoveredNode) {
@@ -1630,58 +1630,67 @@
                 const nodes = this.physicsEngine.nodes;
                 let affectedNodes = 0;
                 
+                // Lock in target positions on first expansion
+                if (!this.expansionLockedIn) {
+                    this.expansionLockedIn = true;
+                    nodes.forEach(node => {
+                        const dx = node.x - centerX;
+                        const dy = node.y - centerY;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance < this.expansionRadius) {
+                            // Store original position if not already stored
+                            if (!node.originalPosition) {
+                                node.originalPosition = { x: node.x, y: node.y };
+                            }
+
+                            // Calculate and LOCK IN target expanded position
+                            const expansionDistance = 80; // Increased separation for easier clicking
+                            if (distance < expansionDistance && distance > 0) {
+                                node.targetExpandedX = centerX + (dx / distance) * expansionDistance;
+                                node.targetExpandedY = centerY + (dy / distance) * expansionDistance;
+                                node.hasExpansionTarget = true;
+                            }
+                        }
+                    });
+                }
+
                 // Clear previous debug data
                 this.debugTargets = [];
 
+                // Apply locked-in positions
                 nodes.forEach(node => {
-                    const dx = node.x - centerX;
-                    const dy = node.y - centerY;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-
-                    if (distance < this.expansionRadius) {
-                        // Store original position if not already stored
-                        if (!node.originalPosition) {
-                            node.originalPosition = { x: node.x, y: node.y };
-                        }
-
-                        // Calculate target expanded position
-                        const expansionDistance = 60; // Minimum separation distance
-                        if (distance < expansionDistance && distance > 0) {
-                            const targetX = centerX + (dx / distance) * expansionDistance;
-                            const targetY = centerY + (dy / distance) * expansionDistance;
-                            
-                            // Store debug info for visual rendering
-                            this.debugTargets.push({
-                                currentX: node.x,
-                                currentY: node.y,
-                                targetX: targetX,
-                                targetY: targetY,
-                                originalX: node.originalPosition.x,
-                                originalY: node.originalPosition.y
-                            });
-                            
-                            // Smoothly interpolate to target position
-                            const lerpFactor = 0.1; // Smooth animation
-                            const newX = node.x + (targetX - node.x) * lerpFactor;
-                            const newY = node.y + (targetY - node.y) * lerpFactor;
-                            
-                            console.log(`Node moving: (${Math.round(node.x)},${Math.round(node.y)}) -> (${Math.round(newX)},${Math.round(newY)}) target: (${Math.round(targetX)},${Math.round(targetY)})`);
-                            
-                            node.x = newX;
-                            node.y = newY;
-                            
-                            // Clear velocity to prevent physics interference
-                            node.vx = 0;
-                            node.vy = 0;
-                            
-                            node.isExpanded = true;
-                            affectedNodes++;
-                        }
+                    if (node.hasExpansionTarget) {
+                        // Store debug info for visual rendering
+                        this.debugTargets.push({
+                            currentX: node.x,
+                            currentY: node.y,
+                            targetX: node.targetExpandedX,
+                            targetY: node.targetExpandedY,
+                            originalX: node.originalPosition.x,
+                            originalY: node.originalPosition.y
+                        });
+                        
+                        // Smoothly interpolate to LOCKED target position
+                        const lerpFactor = 0.15; // Slightly faster for responsiveness
+                        const newX = node.x + (node.targetExpandedX - node.x) * lerpFactor;
+                        const newY = node.y + (node.targetExpandedY - node.y) * lerpFactor;
+                        
+                        node.x = newX;
+                        node.y = newY;
+                        
+                        // Clear velocity to prevent physics interference
+                        node.vx = 0;
+                        node.vy = 0;
+                        
+                        node.isExpanded = true;
+                        affectedNodes++;
                     }
                 });
 
-                // Debug output
-                console.log(`Direct positioning: affecting ${affectedNodes} nodes at center (${Math.round(centerX)},${Math.round(centerY)})`);
+                if (affectedNodes > 0 && Math.random() < 0.02) {
+                    console.log(`Direct positioning: ${affectedNodes} nodes locked to targets`);
+                }
             }
 
             // Restore nodes to original positions when expansion ends
@@ -1702,6 +1711,9 @@
                             node.y = node.originalPosition.y;
                             node.isExpanded = false;
                             node.originalPosition = null;
+                            node.hasExpansionTarget = false;
+                            node.targetExpandedX = null;
+                            node.targetExpandedY = null;
                         }
                     }
                 });

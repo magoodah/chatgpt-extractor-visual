@@ -184,28 +184,71 @@ Building a real-time prompt constellation clustering visualization that displays
 
 **Commit**: Ready for commit with working cluster theme visibility
 
-#### **Issue #2: Node Accessibility** 📋 *NEXT*
+#### **Issue #2: Node Accessibility** ❌ *ATTEMPTED - UNSUCCESSFUL*
 **Problem**: Overlapping nodes in dense clusters become unclickable - users cannot access nodes underneath others.
 
 **🎯 Goal**: Ensure 100% node accessibility regardless of cluster density while maintaining visual clustering effect.
 
-**Planned Solution Approaches**:
-- **Option A: Hover Expansion** - Temporarily spread cluster nodes apart when hovering over dense regions
-- **Option B: Cluster Drill-Down** - Click cluster region to enter focused mode showing all member nodes
-- **Option C: Node Cycling** - Click repeatedly to cycle through stacked nodes at same position  
-- **Option D: Side Panel** - Click cluster to show list of all nodes in expandable panel
+**💡 ATTEMPTED SOLUTIONS (All Failed)**:
 
-**Technical Requirements**:
-- Detect overlapping/stacked nodes within cluster regions
-- Implement temporary node repositioning for accessibility
-- Maintain smooth transitions and visual feedback
-- Preserve clustering physics while enabling access
+**Attempt #1: Force-Based Expansion (V1)**
+- Applied stronger expansion forces (8.0 → 50.0) to push nodes apart
+- Added velocity boost system (10px/frame during expansion)
+- **Result**: Forces briefly moved nodes but clustering physics immediately pulled them back
+- **Issue**: Fighting the physics system rather than working with it
 
-**Success Criteria**:
-- Users can access every individual node regardless of overlap
-- Interaction feels intuitive and discoverable
-- No negative impact on visual clustering beauty
-- Performance remains smooth with 50+ nodes
+**Attempt #2: Disable Clustering Forces (V2-V3)**  
+- Modified physics engine to skip clustering forces for nodes in expansion area
+- Increased expansion radius to 150px to keep nodes "protected"
+- **Result**: Nodes briefly separated but immediately snapped back when exiting protection zone
+- **Issue**: Fundamental conflict between expansion and clustering systems
+
+**Attempt #3: Direct Position Manipulation (V4)**
+- Bypassed physics entirely with direct `node.x/node.y` manipulation  
+- Added comprehensive visual debugging (red center, green targets, blue originals)
+- Prevented physics velocity updates with `node.vx = 0; node.vy = 0`
+- **Result**: Positions were set but immediately overridden by `node.update()`
+- **Issue**: Node update loop doing `this.x += this.vx` after our position changes
+
+**Attempt #4: Skip Physics Updates (V4 Fixed)**
+- Modified node update to skip position changes: `if (!this.isExpanded) { this.x += this.vx; }`
+- **Result**: Nodes moved apart briefly but constantly recalculated based on mouse position
+- **Issue**: "Chasing effect" - nodes ran away from cursor as user approached
+
+**Attempt #5: Locked Target Positions (V5)**
+- Calculated expansion targets ONCE when expansion activates and locked them in
+- Increased separation distance to 80px for easier clicking
+- Prevented continuous recalculation based on mouse movement
+- **Result**: Still unsuccessful - nodes didn't stay in expanded positions reliably
+
+**🔧 TECHNICAL CHALLENGES DISCOVERED**:
+1. **Update Order Conflicts**: Multiple systems (physics, expansion, node updates) fighting for control
+2. **Position Override Chain**: ~4 different code paths that can modify node positions per frame
+3. **Physics Interference**: Clustering forces are fundamental to the visualization and resist override
+4. **Coordinate System Issues**: Potential mismatches between mouse coordinates and node positions
+5. **Animation Loop Complexity**: 60fps updates make debugging timing issues very difficult
+
+**💻 DEBUGGING INFRASTRUCTURE BUILT**:
+- **Version tracking**: V1→V5 with clear browser tab titles and corner indicators
+- **Visual debugging**: Red expansion centers, green targets, blue originals, connection lines
+- **Console logging**: Detailed position tracking, force application, density detection
+- **Systematic testing**: Each approach was committed to git for rollback capability
+
+**📊 FINAL STATUS**: 
+- **Density detection**: ✅ Working (finds dense areas correctly)
+- **Expansion activation**: ✅ Working (red center appears, crosshair cursor)  
+- **Target calculation**: ✅ Working (green dots show correct spread positions)
+- **Visual feedback**: ✅ Working (debugging shows system intent clearly)
+- **Actual node movement**: ❌ **BLOCKED** (nodes don't reach/maintain target positions)
+
+**🎯 CONCLUSION**: 
+The approach of modifying an existing physics-based clustering system to allow temporary expansion appears fundamentally incompatible. The clustering forces are core to the visualization and resist override attempts. A successful solution would likely require either:
+
+1. **Complete architecture redesign** with expansion built into the physics model from the start
+2. **Alternative interaction pattern** (side panel, modal, cycling) that doesn't fight physics
+3. **Separate "detail view" mode** that temporarily pauses clustering entirely
+
+**Recommendation**: Consider alternative approaches that work WITH the clustering system rather than against it.
 
 ### 🎯 **Success Metrics**
 - [ ] Clear cluster theme understanding from visual cues
