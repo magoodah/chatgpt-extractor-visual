@@ -1,0 +1,27 @@
+{
+  "name": "chatgpt-extractor-visual",
+  "version": "1.0.0",
+  "description": "",
+  "main": "firebase-data-extractor.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/magoodah/chatgpt-extractor-visual.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/magoodah/chatgpt-extractor-visual/issues"
+  },
+  "homepage": "https://github.com/magoodah/chatgpt-extractor-visual#readme",
+  "dependencies": {
+    "firebase-admin": "^13.4.0"
+  }
+}
